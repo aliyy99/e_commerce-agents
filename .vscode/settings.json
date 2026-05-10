@@ -1,3 +1,19 @@
 {
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+
+    // ── Tailwind CSS: Suppress false-positive CSS warnings ──────────────
+    // VS Code's built-in CSS validator doesn't understand Tailwind directives
+    // like @tailwind, @apply, @layer. Disabling it removes the yellow warnings.
+    // The Tailwind CSS IntelliSense extension provides proper validation instead.
+    "css.validate": false,
+    "scss.validate": false,
+    "less.validate": false,
+
+    // Tell the Tailwind IntelliSense extension to activate for .css files
+    "tailwindCSS.includeLanguages": {
+        "css": "css"
+    },
+
+    // Treat unknown @-rules (like @tailwind, @apply) as valid
+    "css.lint.unknownAtRules": "ignore"
 }
