@@ -214,3 +214,23 @@ async def delete_price_alert(alert_id: str, user_id: str) -> bool:
     if updated:
         logger.info("Price alert %s deactivated for user %s", alert_id, user_id)
     return updated
+
+# ──────────────────────────────────────────────────────────────
+# Recent Searches (Chat & Analysis Persistence)
+# ──────────────────────────────────────────────────────────────
+
+async def save_recent_search(product_name: str, category: str = "other", analysis_summary: str | None = None, assistant_advice: str | None = None, user_id: str | None = None) -> dict:
+    """Logs an analyzed product and the assistant's advice to the database."""
+    db = get_supabase()
+    record = {
+        "product_name": product_name,
+        "category": category,
+        "analysis_summary": analysis_summary,
+        "assistant_advice": assistant_advice,
+    }
+    if user_id:
+        record["user_id"] = user_id
+
+    response = db.table("recent_searches").insert(record).execute()
+    logger.info("Recent search saved for product=%s", product_name)
+    return response.data[0]

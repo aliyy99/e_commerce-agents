@@ -6,6 +6,7 @@ from .orchestrate    import router as orchestrate_router
 from .tracking       import router as tracking_router
 from .user_data      import router as user_data_router
 from .stream         import router as stream_router
+from .chat           import router as chat_router
 
 __all__ = [
     "vision_router",
@@ -15,4 +16,5 @@ __all__ = [
     "tracking_router",
     "user_data_router",
     "stream_router",
+    "chat_router",
 ]

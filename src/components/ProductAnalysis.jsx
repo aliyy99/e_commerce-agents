@@ -11,6 +11,28 @@ const ProductAnalysis = ({ loading, data }) => {
     { name: 'Local Store', price: 1350.00, status: 'In Stock', color: 'text-emerald-400' },
   ].sort((a, b) => a.price - b.price);
 
+  const strategy = data?.analyst_result?.strategy || 'BELİRSİZ';
+  const aiSummary = data?.analyst_result?.ai_summary || 'Fiyat şu an 30 günlük ortalamanın %12 altında. Mevcut stok seviyeleri kritik, önümüzdeki 2 hafta içinde bir indirim beklenmiyor.';
+  const productName = data?.analyst_result?.product_name || 'MacBook Pro 14" M3';
+  const recommendedPrice = data?.analyst_result?.price_trend?.current_price || 1245.50;
+  
+  let strategyColor = 'bg-slate-400';
+  let strategyText = 'BELİRSİZ';
+  let isPulsing = false;
+  
+  if (strategy === 'AL') {
+    strategyColor = 'bg-emerald-500';
+    strategyText = 'ŞİMDİ AL';
+  } else if (strategy === 'BEKLE') {
+    strategyColor = 'bg-yellow-500';
+    strategyText = 'BEKLE';
+    isPulsing = true;
+  } else if (strategy === 'KAÇIN') {
+    strategyColor = 'bg-red-500';
+    strategyText = 'KAÇIN';
+    isPulsing = true;
+  }
+
   if (loading) {
     return (
       <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -36,7 +58,7 @@ const ProductAnalysis = ({ loading, data }) => {
           <div className="aspect-square rounded-2xl overflow-hidden border border-slate-100">
             <img 
               src="https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&q=80&w=800" 
-              alt="MacBook Pro" 
+              alt={productName} 
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
             />
           </div>
@@ -62,7 +84,7 @@ const ProductAnalysis = ({ loading, data }) => {
         </div>
 
         <div className="mt-2">
-          <h3 className="text-2xl font-display font-black text-slate-900">MacBook Pro 14" M3</h3>
+          <h3 className="text-2xl font-display font-black text-slate-900">{productName}</h3>
           <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-primary" />
             Verified by Analyst Cluster B
@@ -84,11 +106,11 @@ const ProductAnalysis = ({ loading, data }) => {
         animate={{ opacity: 1, y: 0 }}
         className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6"
       >
-        <div className="glass-card p-8 bg-gradient-to-br from-primary/5 to-transparent border-primary/20 glow-advice flex flex-col justify-between bg-white">
+        <div className={`glass-card p-8 bg-gradient-to-br from-primary/5 to-transparent border-primary/20 flex flex-col justify-between bg-white ${isPulsing ? 'animate-pulse' : 'glow-advice'}`}>
           <div>
             <div className="flex items-center justify-between mb-6">
-              <span className="px-4 py-1.5 bg-primary text-white font-black rounded-lg text-xs uppercase tracking-tighter">
-                AL (BUY)
+              <span className={`px-4 py-1.5 ${strategyColor} text-white font-black rounded-lg text-xs uppercase tracking-tighter`}>
+                {strategyText}
               </span>
               <div className="flex -space-x-2">
                 {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-slate-200" />)}
@@ -96,14 +118,13 @@ const ProductAnalysis = ({ loading, data }) => {
             </div>
             <h2 className="text-2xl font-display font-black mb-4 text-slate-900">AI Öngörüsü</h2>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Fiyat şu an 30 günlük ortalamanın <span className="text-primary font-bold">%12 altında</span>. 
-              Mevcut stok seviyeleri kritik, önümüzdeki 2 hafta içinde bir indirim beklenmiyor.
+              {aiSummary}
             </p>
           </div>
           <div className="mt-8 pt-6 border-t border-slate-100 flex items-end justify-between">
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recommended Price</p>
-              <p className="text-3xl font-black text-slate-900">$1,245.50</p>
+              <p className="text-3xl font-black text-slate-900">${recommendedPrice.toLocaleString()}</p>
             </div>
             <button className="btn-primary py-2.5 px-5 text-sm uppercase">Satın Al</button>
           </div>

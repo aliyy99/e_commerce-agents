@@ -143,3 +143,10 @@ class OrchestrateResponse(BaseModel):
     db_record_id:   Optional[str]             = Field(None, description="Supabase row UUID if save_to_db=True.")
     duration_ms:    Optional[int]             = Field(None, description="Total orchestration time in milliseconds.")
     error_detail:   Optional[str]            = None
+
+# ──────────────────────────────────────────────────────────────
+# Chat Assistant Response
+# ──────────────────────────────────────────────────────────────
+class ChatResponse(BaseModel):
+    reply: str
+

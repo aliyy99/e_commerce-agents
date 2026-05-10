@@ -110,3 +110,28 @@ CREATE POLICY "service_key_full_access_alerts"
     FOR ALL
     USING (true)
     WITH CHECK (true);
+
+-- ─────────────────────────────────────────────────────────
+-- Table: recent_searches
+-- Stores analyzed products and chat advices for persistence.
+-- ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS recent_searches (
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          TEXT,
+    product_name     TEXT         NOT NULL,
+    category         TEXT         NOT NULL DEFAULT 'other',
+    analysis_summary TEXT,
+    assistant_advice TEXT,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_recent_searches_user
+    ON recent_searches (user_id, created_at DESC);
+
+ALTER TABLE recent_searches ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service_key_full_access_recent_searches"
+    ON recent_searches
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);

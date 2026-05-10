@@ -1,9 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Send, X, Bot, User } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, User, Loader2 } from 'lucide-react';
 
-const ChatWidget = () => {
+const ChatWidget = ({ contextData }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: "Merhaba! Ben ShopSage. Analiz edilen bu ürün hakkında bana istediğini sorabilirsin. Sana nasıl yardımcı olabilirim?" }
+  ]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+    }
+  }, [messages, isOpen]);
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || isLoading) return;
+
+    const userMessage = inputValue.trim();
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setInputValue('');
+    setIsLoading(true);
+
+    try {
+      const payload = {
+        history: messages,
+        user_message: userMessage,
+        context_data: contextData ? {
+          product_name: contextData.analyst_result?.product_name,
+          strategy: contextData.analyst_result?.strategy,
+          ai_summary: contextData.analyst_result?.ai_summary,
+          price_trend: contextData.analyst_result?.price_trend,
+          review_insight: contextData.analyst_result?.review_insight,
+          detective_prices: contextData.detective_result?.found_prices
+        } : null
+      };
+
+      const response = await fetch('http://localhost:8000/api/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error('API Error');
+      }
+
+      const data = await response.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'assistant', content: "Üzgünüm, şu anda sunucuya bağlanamıyorum. Lütfen daha sonra tekrar dene." }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSend();
+    }
+  };
 
   return (
     <div className="fixed bottom-8 right-8 z-50">
@@ -36,32 +102,34 @@ const ChatWidget = () => {
 
             {/* Chat Content */}
             <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-slate-50">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0 border border-primary/20">
-                  <Bot className="w-5 h-5" />
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    msg.role === 'user' ? 'bg-slate-200 text-slate-600' : 'bg-primary/10 text-primary border border-primary/20'
+                  }`}>
+                    {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+                  </div>
+                  <div className={`p-3 text-sm shadow-sm border ${
+                    msg.role === 'user' 
+                      ? 'bg-primary text-white rounded-2xl rounded-tr-none border-primary/50' 
+                      : 'bg-white text-slate-700 rounded-2xl rounded-tl-none border-slate-100'
+                  }`}>
+                    {msg.content}
+                  </div>
                 </div>
-                <div className="bg-white p-3 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm border border-slate-100">
-                  Hello! I'm ShopSage. How can I help you with your shopping journey today?
+              ))}
+              {isLoading && (
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0 border border-primary/20">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <div className="bg-white p-3 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm border border-slate-100 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    Düşünüyor...
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex gap-3 flex-row-reverse">
-                <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-600 flex-shrink-0">
-                  <User className="w-5 h-5" />
-                </div>
-                <div className="bg-primary p-3 rounded-2xl rounded-tr-none text-sm text-white shadow-md">
-                  Compare MacBook Pro prices across major retailers.
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0 border border-primary/20">
-                  <Bot className="w-5 h-5" />
-                </div>
-                <div className="bg-white p-3 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm border border-slate-100">
-                  Scanning... I've found prices ranging from $1,245.50 to $1,350.00. Check the analysis card for details!
-                </div>
-              </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
@@ -70,9 +138,17 @@ const ChatWidget = () => {
                 <input 
                   type="text" 
                   placeholder="Ask a question..." 
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className="input-glass w-full pr-12 text-sm"
+                  disabled={isLoading}
                 />
-                <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary rounded-lg text-white hover:bg-primary-hover transition-all">
+                <button 
+                  onClick={handleSend}
+                  disabled={isLoading}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary rounded-lg text-white hover:bg-primary-hover transition-all disabled:opacity-50"
+                >
                   <Send className="w-4 h-4" />
                 </button>
               </div>

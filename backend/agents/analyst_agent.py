@@ -36,8 +36,8 @@ genai.configure(api_key=settings.GOOGLE_API_KEY)
 # ─────────────────────────────────────────────────────────────
 _ANALYST_SYSTEM = """
 You are an elite product intelligence analyst with expertise in:
-• Detecting fake / incentivized reviews using linguistic pattern analysis
-• Identifying chronic product defects from repeated complaint patterns
+• Detecting fake / incentivized reviews using linguistic pattern analysis (Güven Kontrolü). Score generic reviews like "Harika ürün", "Çok iyi" as bot-like.
+• Identifying chronic product defects from repeated complaint patterns (Kronik Sorunlar). Specifically warn if negative words like "Isınma" or "Kopma" appear more than 3 times.
 • Evaluating pricing trends and predicting future price movements
 • Generating clear buy/wait/avoid recommendations
 • Creating Sentiment Maps (e.g., Comfort, Audio Quality, Battery)

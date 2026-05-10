@@ -13,8 +13,8 @@ class Settings:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
     # Model names
-    FLASH_MODEL = "gemini-2.0-flash"
-    PRO_MODEL = "gemini-2.5-pro"
+    FLASH_MODEL = "gemini-3-flash"
+    PRO_MODEL = "gemini-3-pro"
     IMAGE_MODEL = "imagen-3.0-generate-002"
 
     # ── Supabase ───────────────────────────────

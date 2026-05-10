@@ -51,6 +51,10 @@ async def mock_search(query: str) -> tuple[List[StoreResult], List[str]]:
         "Konfor açısından mükemmel, saatlerce takıyorum ağrı yapmıyor.",
         "Ürün orijinal değil galiba, kutusu hasarlıydı.",
         "Bu fiyata alınabilecek en iyi cihaz.",
+        "Sürekli ısınma sorunu yaşıyorum, kesinlikle kronik.",
+        "Isınma yüzünden cihaz kendini kapatıyor.",
+        "Bağlantıda sürekli kopma sorunları oluyor, hiç stabil değil.",
+        "Oyun oynarken kopma yapıyor ve ciddi ısınma problemi var, tavsiye etmiyorum."
     ]
 
     return stores, reviews

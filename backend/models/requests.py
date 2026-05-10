@@ -131,3 +131,16 @@ class OrchestrateRequest(BaseModel):
     style:         Optional[StyleRequest]    = None
     save_to_db:    bool                  = Field(default=True, description="Persist results to Supabase.")
     session_id:    Optional[str]         = Field(None, description="WebSocket session ID for real-time updates.")
+
+# ──────────────────────────────────────────────────────────────
+# Chat Assistant
+# ──────────────────────────────────────────────────────────────
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str
+
+class ChatRequest(BaseModel):
+    history: List[ChatMessage] = Field(default_factory=list)
+    user_message: str
+    context_data: Optional[dict] = Field(None, description="Current product analysis data")
+

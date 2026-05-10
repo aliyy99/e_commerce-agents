@@ -4,6 +4,7 @@ import ProductAnalysis from './components/ProductAnalysis';
 import Profile from './components/Profile';
 import AgentTerminal from './components/AgentTerminal';
 import PipelineLoader from './components/PipelineLoader';
+import ChatWidget from './components/ChatWidget';
 import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, Zap, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { runPipeline, subscribeToPipeline, generateSessionId } from './services/api';
@@ -330,6 +331,7 @@ function App() {
       </main>
 
       {/* Agentic Logs Terminal — always visible at bottom-right */}
+      <ChatWidget contextData={pipelineResult} />
       <AgentTerminal 
         logs={pipelineLogs} 
         isRunning={isRunning}
