@@ -4,6 +4,12 @@ from .supabase_client import (
     upsert_analysis_result,
     fetch_cached_analysis,
     save_generated_image,
+    add_favorite,
+    get_favorites,
+    delete_favorite,
+    add_price_alert,
+    get_price_alerts,
+    delete_price_alert,
 )
 
 __all__ = [
@@ -11,4 +17,10 @@ __all__ = [
     "upsert_analysis_result",
     "fetch_cached_analysis",
     "save_generated_image",
+    "add_favorite",
+    "get_favorites",
+    "delete_favorite",
+    "add_price_alert",
+    "get_price_alerts",
+    "delete_price_alert",
 ]

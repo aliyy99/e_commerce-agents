@@ -4,8 +4,9 @@
 ╠══════════════════════════════════════════════════════════════╣
 ║  RESPONSIBILITIES:                                           ║
 ║  ▸ Parse the user query to determine which agents to invoke  ║
-║  ▸ Run Vision + Analyst concurrently with asyncio.gather     ║
+║  ▸ Run Vision → Detective → Analyst sequentially (CoT)       ║
 ║  ▸ Invoke Visualizer only for fashion/furniture categories   ║
+║  ▸ Push real-time SSE events for the Agentic Logs terminal   ║
 ║  ▸ Persist the aggregated result to Supabase                 ║
 ║  ▸ Return a unified OrchestrateResponse in < 5 s (P95)       ║
 ╚══════════════════════════════════════════════════════════════╝
@@ -30,6 +31,7 @@ from ..agents.detective_agent  import run_detective_agent
 from ..agents.analyst_agent    import run_analyst_agent
 from ..agents.visualizer_agent import run_visualizer_agent
 from ..db import upsert_analysis_result
+from ..routes.stream import push_event
 
 logger = logging.getLogger("shopsage.orchestrator")
 
@@ -55,9 +57,11 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-async def emit_status(session_id: str | None, message: str):
+async def emit_status(session_id: str | None, agent: str, message: str):
+    """Dual emitter: pushes to both WebSocket (legacy) and SSE (new)."""
     if session_id:
-        await manager.send_status(session_id, message)
+        await manager.send_status(session_id, f"[{agent}] {message}")
+        await push_event(session_id, agent, message, event_type="log")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -83,18 +87,21 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     
     sid = request.session_id
 
-    await emit_status(sid, "Orkestrasyon başlatıldı...")
+    await emit_status(sid, "System", "Orkestrasyon başlatıldı...")
 
     # ── 1. Vision Agent ─────────────────────────────
     if request.vision is not None:
         agents_invoked.append("vision_agent")
-        await emit_status(sid, "Görsel işleniyor (Gemini 2.0 Flash)...")
+        await emit_status(sid, "Visionary", "Gemini 3 Flash is analyzing the image...")
         try:
             vision_result = await run_vision_agent(request.vision)
             if vision_result.status != AgentStatus.ERROR:
-                await emit_status(sid, f"Ürün tespit edildi: {vision_result.product_name}")
+                await emit_status(sid, "Visionary", f"Product identified: {vision_result.product_name}")
+            else:
+                await emit_status(sid, "Visionary", f"Image analysis failed: {vision_result.error_detail}")
         except Exception as e:
             vision_result = _vision_error(e)
+            await emit_status(sid, "Visionary", f"Error: {str(e)}")
 
     # Determine keywords for search
     keywords = None
@@ -108,16 +115,22 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── 2. Detective Agent ──────────────────────────
     if keywords:
         agents_invoked.append("detective_agent")
+        await emit_status(sid, "Detective", "Searching global marketplaces for the best price...")
         req = DetectiveRequest(product_keywords=keywords)
         
-        async def emit_det(msg): await emit_status(sid, msg)
+        async def emit_det(msg): await emit_status(sid, "Detective", msg)
         
         try:
             detective_result = await run_detective_agent(req, emit_status=emit_det)
+            if detective_result.status != AgentStatus.ERROR:
+                price_count = len(detective_result.found_prices)
+                review_count = len(detective_result.reviews_found)
+                await emit_status(sid, "Detective", f"Found {price_count} price points and {review_count} reviews across marketplaces.")
         except Exception as e:
             detective_result = DetectiveResponse(
                 status=AgentStatus.ERROR, query_used=keywords, retries=0, error_detail=str(e)
             )
+            await emit_status(sid, "Detective", f"Search failed: {str(e)}")
 
     # ── 3. Analyst Agent ────────────────────────────
     # If we have scraped data, or if user explicitly provided analyst payload
@@ -138,18 +151,29 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
 
     if analyst_req:
         agents_invoked.append("analyst_agent")
-        async def emit_ana(msg): await emit_status(sid, msg)
+        review_count = len(analyst_req.reviews)
+        await emit_status(sid, "Analyst", f"Gemini 3 Pro is processing {review_count}+ reviews for sentiment analysis...")
+        
+        async def emit_ana(msg): await emit_status(sid, "Analyst", msg)
         try:
             analyst_result = await run_analyst_agent(analyst_req, emit_status=emit_ana)
+            if analyst_result.status != AgentStatus.ERROR:
+                fake_pct = analyst_result.review_insight.fake_review_pct
+                fake_count = int(fake_pct / 100 * analyst_result.review_insight.total_reviews)
+                await emit_status(sid, "Analyst", f"{fake_count} suspicious bot reviews detected and discarded.")
+                await emit_status(sid, "Decision", f"Recommendation ready: {analyst_result.strategy.value}.")
         except Exception as e:
             analyst_result = _analyst_error(e)
+            await emit_status(sid, "Analyst", f"Analysis failed: {str(e)}")
 
     # ── 4. Visualizer Agent ─────────────────────────
     if request.style and request.category in (ProductCategory.FASHION, ProductCategory.FURNITURE):
         agents_invoked.append("visualizer_agent")
-        await emit_status(sid, "Görsel (stil) üretiliyor (Imagen 3)...")
+        await emit_status(sid, "Visualizer", "Generating contextual style image (Imagen 3)...")
         try:
             style_result = await run_visualizer_agent(request.style)
+            if style_result.status != AgentStatus.ERROR:
+                await emit_status(sid, "Visualizer", "Style image generated successfully.")
         except Exception as err:
             style_result = StyleResponse(status=AgentStatus.ERROR, error_detail=str(err))
 
@@ -157,7 +181,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── PHASE 5: Persist to Supabase ──────────────────────────
     if request.save_to_db and (vision_result or analyst_result):
         try:
-            await emit_status(sid, "Sonuçlar Supabase'e kaydediliyor...")
+            await emit_status(sid, "System", "Sonuçlar Supabase'e kaydediliyor...")
             db_record_id = await upsert_analysis_result({
                 "id":            str(uuid.uuid4()),
                 "product_id":    analyst_result.product_id if analyst_result else None,
@@ -174,7 +198,11 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     duration_ms = int((time.monotonic() - t_start) * 1000)
     logger.info("Orchestrator → done  agents=%s  duration=%dms", agents_invoked, duration_ms)
 
-    await emit_status(sid, f"Orkestrasyon tamamlandı. ({duration_ms}ms)")
+    await emit_status(sid, "System", f"Pipeline completed in {duration_ms}ms.")
+
+    # Push "done" event to close SSE stream
+    if sid:
+        await push_event(sid, "System", "done", event_type="done")
 
     all_results = [r for r in [vision_result, detective_result, analyst_result, style_result] if r]
     if any(r.status == AgentStatus.ERROR for r in all_results):

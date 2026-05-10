@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .routes import vision_router, analyze_router, style_router, orchestrate_router, tracking_router
+from .routes import vision_router, analyze_router, style_router, orchestrate_router, tracking_router, user_data_router, stream_router
 
 # ── Logging setup ─────────────────────────────────────────────
 logging.basicConfig(
@@ -85,6 +85,8 @@ app.include_router(analyze_router,     prefix="/api/v1")
 app.include_router(style_router,       prefix="/api/v1")
 app.include_router(orchestrate_router, prefix="/api/v1")
 app.include_router(tracking_router,    prefix="/api/v1")
+app.include_router(user_data_router,   prefix="/api/v1")
+app.include_router(stream_router,      prefix="/api/v1")
 
 
 # ── Health check ──────────────────────────────────────────────

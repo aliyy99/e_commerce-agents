@@ -1,16 +1,100 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import ProductAnalysis from './components/ProductAnalysis';
 import Profile from './components/Profile';
-import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, LayoutDashboard } from 'lucide-react';
+import AgentTerminal from './components/AgentTerminal';
+import PipelineLoader from './components/PipelineLoader';
+import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Upload, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { runPipeline, subscribeToPipeline, generateSessionId } from './services/api';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
+  // Pipeline state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isRunning, setIsRunning] = useState(false);
+  const [pipelineLogs, setPipelineLogs] = useState([]);
+  const [pipelineResult, setPipelineResult] = useState(null);
+  const [currentAgent, setCurrentAgent] = useState('');
+  const [lastMessage, setLastMessage] = useState('');
+
+  // Image upload state
+  const [uploadedImage, setUploadedImage] = useState(null);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setUploadedImage(event.target.result); // Base64 string
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSearch = useCallback(async () => {
+    if (!searchQuery.trim() && !uploadedImage) return;
+
+    setIsRunning(true);
+    setPipelineLogs([]);
+    setPipelineResult(null);
+    setCurrentAgent('');
+    setLastMessage('Pipeline başlatılıyor...');
+
+    const sessionId = generateSessionId();
+
+    // 1. Subscribe to SSE stream FIRST
+    const eventSource = subscribeToPipeline(sessionId, {
+      onLog: (data) => {
+        setPipelineLogs(prev => [...prev, data]);
+        setCurrentAgent(data.agent);
+        setLastMessage(data.message);
+      },
+      onDone: () => {
+        setIsRunning(false);
+        setCurrentAgent('');
+      },
+      onError: (err) => {
+        console.error('SSE error:', err);
+        setPipelineLogs(prev => [...prev, { agent: 'System', message: `Connection error: ${err}`, ts: Date.now() / 1000 }]);
+      },
+    });
+
+    // 2. Trigger the pipeline
+    try {
+      const payload = {
+        query: searchQuery || 'Product analysis',
+        session_id: sessionId,
+        save_to_db: true,
+      };
+
+      // If image is uploaded, add vision payload
+      if (uploadedImage) {
+        payload.vision = {
+          input_type: 'base64',
+          image_data: uploadedImage.split(',')[1], // Remove data:image/...;base64, prefix
+        };
+      }
+
+      const result = await runPipeline(payload);
+      setPipelineResult(result);
+    } catch (err) {
+      console.error('Pipeline error:', err);
+      setPipelineLogs(prev => [...prev, { agent: 'System', message: `Error: ${err.message}`, ts: Date.now() / 1000 }]);
+    } finally {
+      setIsRunning(false);
+      setCurrentAgent('');
+      eventSource.close();
+    }
+  }, [searchQuery, uploadedImage]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSearch();
+  };
+
   return (
-    <div className="min-h-screen bg-background text-slate-100 font-sans selection:bg-primary/20">
+    <div className="min-h-screen bg-background text-slate-900 font-sans selection:bg-primary/20">
       <Sidebar activePage={currentPage} onNavigate={setCurrentPage} />
       
       <main className="pl-72 relative z-10 transition-all duration-300">
@@ -20,17 +104,48 @@ function App() {
             <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize">
               {currentPage === 'dashboard' ? 'Intelligence Dashboard' : 'Account Intelligence'}
             </h2>
-            <div className="flex items-center gap-4 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group">
+            <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group">
               <Search className="w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
               <input 
                 type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Paste a product link or search intelligence..." 
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-900 placeholder:text-slate-400"
               />
+              {/* Image upload button */}
+              <label className="cursor-pointer p-1.5 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-primary">
+                <Camera className="w-4 h-4" />
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              </label>
+              {/* Search trigger */}
+              <button 
+                onClick={handleSearch}
+                disabled={isRunning}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  isRunning 
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                    : 'bg-primary text-white hover:bg-primary-hover shadow-sm'
+                }`}
+              >
+                {isRunning ? 'Analyzing...' : 'Analyze'}
+              </button>
             </div>
           </div>
 
           <div className="flex items-center gap-4 ml-6">
+            {uploadedImage && (
+              <div className="relative">
+                <img src={uploadedImage} alt="Uploaded" className="w-10 h-10 rounded-lg object-cover border-2 border-primary/30" />
+                <button 
+                  onClick={() => setUploadedImage(null)} 
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-accent-rose text-white rounded-full text-[8px] flex items-center justify-center font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <button className="relative p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100">
               <Bell className="w-5 h-5" />
               <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white" />
@@ -118,7 +233,12 @@ function App() {
                   ))}
                 </div>
 
-                <ProductAnalysis loading={false} />
+                {/* Pipeline Loader OR Product Analysis */}
+                {isRunning ? (
+                  <PipelineLoader currentAgent={currentAgent} message={lastMessage} />
+                ) : (
+                  <ProductAnalysis loading={false} data={pipelineResult} />
+                )}
                 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-10">
                   <div className="xl:col-span-2 glass-card p-8 border-slate-100 bg-white">
@@ -187,6 +307,13 @@ function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Agentic Logs Terminal — always visible at bottom-right */}
+      <AgentTerminal 
+        logs={pipelineLogs} 
+        isRunning={isRunning}
+        onClear={() => setPipelineLogs([])}
+      />
     </div>
   );
 }

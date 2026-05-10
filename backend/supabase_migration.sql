@@ -28,6 +28,48 @@ CREATE TABLE IF NOT EXISTS analysis_results (
 CREATE INDEX IF NOT EXISTS idx_analysis_product_id
     ON analysis_results (product_id, created_at DESC);
 
+
+-- ─────────────────────────────────────────────────────────
+-- Table: favorites
+-- Stores user-favorited products for the Profile dashboard.
+-- ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS favorites (
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          TEXT         NOT NULL,
+    product_name     TEXT         NOT NULL,
+    price            NUMERIC(12,2) NOT NULL,
+    url              TEXT         NOT NULL,
+    image_url        TEXT,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_favorites_user_id
+    ON favorites (user_id, created_at DESC);
+
+
+-- ─────────────────────────────────────────────────────────
+-- Table: price_alerts
+-- Stores user-defined price drop alerts for background monitoring.
+-- ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS price_alerts (
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          TEXT         NOT NULL,
+    product_id       TEXT         NOT NULL,
+    product_name     TEXT         NOT NULL,
+    target_price     NUMERIC(12,2) NOT NULL,
+    current_price    NUMERIC(12,2) NOT NULL,
+    is_active        BOOLEAN      NOT NULL DEFAULT true,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    triggered_at     TIMESTAMPTZ  -- When the alert was triggered (price dropped)
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_alerts_user_active
+    ON price_alerts (user_id, is_active, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_price_alerts_product
+    ON price_alerts (product_id, is_active);
+
+
 -- ─────────────────────────────────────────────────────────
 -- Storage bucket: shopsage-images
 -- Stores Visualizer Agent generated images.
@@ -47,10 +89,24 @@ ON CONFLICT (id) DO NOTHING;
 -- Enable for production; disable during local dev.
 -- ─────────────────────────────────────────────────────────
 ALTER TABLE analysis_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE favorites        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE price_alerts     ENABLE ROW LEVEL SECURITY;
 
 -- Service key bypass (backend writes use service key)
 CREATE POLICY "service_key_full_access"
     ON analysis_results
     FOR ALL
     USING (true)      -- Allow service key to bypass
+    WITH CHECK (true);
+
+CREATE POLICY "service_key_full_access_favorites"
+    ON favorites
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "service_key_full_access_alerts"
+    ON price_alerts
+    FOR ALL
+    USING (true)
     WITH CHECK (true);

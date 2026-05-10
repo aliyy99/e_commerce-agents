@@ -28,7 +28,7 @@ def get_supabase() -> Client:
 
 
 # ──────────────────────────────────────────────────────────────
-# Table-level helpers
+# Analysis Results (existing)
 # ──────────────────────────────────────────────────────────────
 
 async def upsert_analysis_result(record: dict) -> str:
@@ -116,3 +116,101 @@ async def save_generated_image(product_name: str, image_bytes: bytes) -> str:
     public_url = db.storage.from_("shopsage-images").get_public_url(path)
     logger.info("Image uploaded to Supabase Storage → %s", public_url)
     return public_url
+
+
+# ──────────────────────────────────────────────────────────────
+# Favorites CRUD
+# ──────────────────────────────────────────────────────────────
+
+async def add_favorite(user_id: str, product_name: str, price: float, url: str, image_url: str | None = None) -> dict:
+    """Inserts a new favorite product for the user."""
+    db = get_supabase()
+    record = {
+        "user_id": user_id,
+        "product_name": product_name,
+        "price": price,
+        "url": url,
+        "image_url": image_url,
+    }
+    response = db.table("favorites").insert(record).execute()
+    logger.info("Favorite added for user=%s product=%s", user_id, product_name)
+    return response.data[0]
+
+
+async def get_favorites(user_id: str) -> list[dict]:
+    """Returns all favorites for a user, ordered newest-first."""
+    db = get_supabase()
+    response = (
+        db.table("favorites")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return response.data
+
+
+async def delete_favorite(favorite_id: str, user_id: str) -> bool:
+    """Removes a favorite by its ID (scoped to user for safety)."""
+    db = get_supabase()
+    response = (
+        db.table("favorites")
+        .delete()
+        .eq("id", favorite_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    deleted = len(response.data) > 0
+    if deleted:
+        logger.info("Favorite %s deleted for user %s", favorite_id, user_id)
+    return deleted
+
+
+# ──────────────────────────────────────────────────────────────
+# Price Alerts CRUD
+# ──────────────────────────────────────────────────────────────
+
+async def add_price_alert(user_id: str, product_id: str, product_name: str, target_price: float, current_price: float) -> dict:
+    """Creates a new price alert/tracking entry."""
+    db = get_supabase()
+    record = {
+        "user_id": user_id,
+        "product_id": product_id,
+        "product_name": product_name,
+        "target_price": target_price,
+        "current_price": current_price,
+        "is_active": True,
+    }
+    response = db.table("price_alerts").insert(record).execute()
+    logger.info("Price alert created for user=%s product=%s target=%.2f", user_id, product_name, target_price)
+    return response.data[0]
+
+
+async def get_price_alerts(user_id: str) -> list[dict]:
+    """Returns all active price alerts for a user."""
+    db = get_supabase()
+    response = (
+        db.table("price_alerts")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("is_active", True)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return response.data
+
+
+async def delete_price_alert(alert_id: str, user_id: str) -> bool:
+    """Deactivates a price alert (soft-delete)."""
+    db = get_supabase()
+    response = (
+        db.table("price_alerts")
+        .update({"is_active": False})
+        .eq("id", alert_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    updated = len(response.data) > 0
+    if updated:
+        logger.info("Price alert %s deactivated for user %s", alert_id, user_id)
+    return updated

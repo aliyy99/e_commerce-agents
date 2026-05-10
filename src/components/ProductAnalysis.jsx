@@ -2,7 +2,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ExternalLink, ShieldCheck, AlertCircle, TrendingDown, ArrowUpRight, Check, X, Info } from 'lucide-react';
 
-const ProductAnalysis = ({ loading }) => {
+const ProductAnalysis = ({ loading, data }) => {
+  // When `data` (OrchestrateResponse) is available, use it; otherwise show mock data.
+  // Future: map data.analyst_result, data.detective_result to the Bento cards dynamically.
   const stores = [
     { name: 'eBay', price: 1245.50, status: 'Limited', color: 'text-blue-400' },
     { name: 'Amazon', price: 1299.00, status: 'In Stock', color: 'text-orange-400' },
