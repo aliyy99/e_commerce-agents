@@ -4,7 +4,7 @@ import ProductAnalysis from './components/ProductAnalysis';
 import Profile from './components/Profile';
 import AgentTerminal from './components/AgentTerminal';
 import PipelineLoader from './components/PipelineLoader';
-import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Upload, Camera } from 'lucide-react';
+import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, Zap, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { runPipeline, subscribeToPipeline, generateSessionId } from './services/api';
 
@@ -102,7 +102,11 @@ function App() {
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6 flex-1">
             <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize">
-              {currentPage === 'dashboard' ? 'Intelligence Dashboard' : 'Account Intelligence'}
+              {currentPage === 'dashboard' && 'Market Intelligence'}
+              {currentPage === 'market' && 'Global Trends'}
+              {currentPage === 'tracked' && 'Monitoring Station'}
+              {currentPage === 'favorites' && 'Curated Favorites'}
+              {currentPage === 'profile' && 'Account Settings'}
             </h2>
             <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group">
               <Search className="w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
@@ -114,12 +118,10 @@ function App() {
                 placeholder="Paste a product link or search intelligence..." 
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-900 placeholder:text-slate-400"
               />
-              {/* Image upload button */}
               <label className="cursor-pointer p-1.5 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-primary">
                 <Camera className="w-4 h-4" />
                 <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
               </label>
-              {/* Search trigger */}
               <button 
                 onClick={handleSearch}
                 disabled={isRunning}
@@ -153,9 +155,7 @@ function App() {
             <button className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100">
               <Settings className="w-5 h-5" />
             </button>
-            
             <div className="h-8 w-px bg-slate-200 mx-2" />
-            
             <div className="relative">
               <button 
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -170,7 +170,6 @@ function App() {
                 </div>
                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
               </button>
-
               <AnimatePresence>
                 {isUserMenuOpen && (
                   <>
@@ -188,7 +187,10 @@ function App() {
                         <UserCircle className="w-4 h-4" />
                         My Profile
                       </button>
-                      <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all">
+                      <button 
+                        onClick={() => { setCurrentPage('favorites'); setIsUserMenuOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all"
+                      >
                         <Heart className="w-4 h-4" />
                         Favorites
                       </button>
@@ -207,7 +209,7 @@ function App() {
 
         <div className="px-10 py-8 max-w-[1600px] mx-auto overflow-hidden">
           <AnimatePresence mode="wait">
-            {currentPage === 'dashboard' ? (
+            {currentPage === 'dashboard' && (
               <motion.div 
                 key="dashboard"
                 initial={{ opacity: 0, x: -20 }}
@@ -215,48 +217,47 @@ function App() {
                 exit={{ opacity: 0, x: 20 }}
                 className="space-y-10"
               >
-                {/* Quick Stats / Overview */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  {[
-                    { label: 'Active Monitors', value: '12', sub: '+2 today', color: 'primary' },
-                    { label: 'Intelligence Gathered', value: '1.4k', sub: 'Last 24h', color: 'blue' },
-                    { label: 'Successful Finds', value: '28', sub: 'Last 7 days', color: 'emerald' },
-                    { label: 'Credits Remaining', value: '450', sub: 'Refills in 2d', color: 'amber' },
-                  ].map((stat, i) => (
-                    <div key={i} className="glass-card p-6 flex flex-col gap-2 border-slate-100 hover:border-slate-200 transition-colors bg-white">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</span>
-                      <div className="flex items-end gap-2">
-                        <span className="text-3xl font-black text-slate-900">{stat.value}</span>
-                        <span className="text-[10px] text-primary font-bold mb-1.5 uppercase">{stat.sub}</span>
+                {/* Active Intelligence Feed - Top Priority */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+                  <div className="xl:col-span-8">
+                    {isRunning ? (
+                      <PipelineLoader currentAgent={currentAgent} message={lastMessage} />
+                    ) : (
+                      <ProductAnalysis loading={false} data={pipelineResult} />
+                    )}
+                  </div>
+                  <div className="xl:col-span-4 flex flex-col gap-6">
+                    <div className="glass-card p-6 border-slate-100 bg-white">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Live Intelligence Stream</h3>
+                      <div className="space-y-6">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="flex items-start gap-4 pb-6 border-b border-slate-50 last:border-0 last:pb-0">
+                            <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
+                              <Zap className="w-4 h-4 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-900 leading-tight">MacBook Pro price dropped!</p>
+                              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">System detected a 5% drop on Amazon. Strategy: <span className="text-primary font-bold">BUY</span></p>
+                              <span className="text-[9px] text-slate-400 font-bold mt-2 block">2m ago</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
 
-                {/* Pipeline Loader OR Product Analysis */}
-                {isRunning ? (
-                  <PipelineLoader currentAgent={currentAgent} message={lastMessage} />
-                ) : (
-                  <ProductAnalysis loading={false} data={pipelineResult} />
-                )}
-                
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-10">
                   <div className="xl:col-span-2 glass-card p-8 border-slate-100 bg-white">
                     <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-xl font-display font-black text-slate-900">Intelligence Activity</h3>
-                      <button className="text-xs text-primary font-black uppercase tracking-widest hover:underline">View Stream</button>
+                      <h3 className="text-xl font-display font-black text-slate-900">Interest Analysis</h3>
+                      <button className="text-xs text-primary font-black uppercase tracking-widest hover:underline">Deep Dive</button>
                     </div>
-                    <div className="space-y-8">
-                      {[1,2,3].map(i => (
-                        <div key={i} className="flex items-start gap-4 pb-8 border-b border-slate-100 last:border-0 last:pb-0">
-                          <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-inner">
-                            <Search className="w-5 h-5 text-slate-400" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-slate-900">Detective Agent found a new price point</p>
-                            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">Sony WH-1000XM5 price dropped by <span className="text-primary font-bold">12%</span> on Amazon Marketplace.</p>
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">14m ago</span>
+                    <div className="grid grid-cols-3 gap-4">
+                      {['Electronics', 'Fashion', 'Home Intelligence'].map(cat => (
+                        <div key={cat} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer group">
+                          <p className="text-[10px] font-black text-slate-400 uppercase mb-1">{cat}</p>
+                          <p className="text-lg font-black text-slate-900 group-hover:text-primary transition-colors">94% Fit</p>
                         </div>
                       ))}
                     </div>
@@ -279,29 +280,49 @@ function App() {
                         </div>
                         <p className="text-[10px] text-slate-500 mt-3 font-bold uppercase tracking-tighter">Processing: Multimodal Query #4492</p>
                       </div>
-                      <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 group hover:border-slate-300 transition-all cursor-pointer">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Analyst Cluster B</span>
-                          <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-500 text-[10px] font-black uppercase">IDLE</span>
-                        </div>
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                          <div className="bg-slate-300 h-full w-0" />
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-3 font-bold uppercase tracking-tighter">Standby: Monitoring Review Stream</p>
-                      </div>
                     </div>
                     <button className="btn-primary w-full mt-8 py-4 text-xs tracking-widest uppercase">UPGRADE AGENT MESH</button>
                   </div>
                 </div>
               </motion.div>
-            ) : (
-              <motion.div 
-                key="profile"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <Profile />
+            )}
+
+            {currentPage === 'market' && (
+              <motion.div key="market" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                <h2 className="text-3xl font-display font-black text-slate-900">Global Market Trends</h2>
+                <div className="grid grid-cols-3 gap-6">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="glass-card p-8 bg-white border-slate-100">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-6">
+                        <TrendingUp className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-xl font-bold mb-2">Trend Analysis #{i}</h3>
+                      <p className="text-sm text-slate-500 mb-6">Market is shifting towards sustainable tech integration.</p>
+                      <button className="text-xs font-black text-primary uppercase tracking-widest">Read Report</button>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {currentPage === 'tracked' && (
+              <motion.div key="tracked" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                <h2 className="text-3xl font-display font-black text-slate-900">Tracked Products</h2>
+                <div className="glass-card p-12 text-center bg-white border-slate-100">
+                  <p className="text-slate-500">You are currently monitoring <span className="text-slate-900 font-bold">12 products</span> across 4 marketplaces.</p>
+                </div>
+              </motion.div>
+            )}
+
+            {currentPage === 'favorites' && (
+              <motion.div key="favorites" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <Profile forceTab="favorites" />
+              </motion.div>
+            )}
+
+            {currentPage === 'profile' && (
+              <motion.div key="profile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                <Profile forceTab="profile" />
               </motion.div>
             )}
           </AnimatePresence>

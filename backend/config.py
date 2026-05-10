@@ -1,34 +1,41 @@
 """
 ShopSage AI - Application Settings
-Loaded from environment variables via pydantic-settings.
+Yüklenen ortam değişkenleri ve güvenlik yapılandırmaları.
 """
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+from dotenv import load_dotenv
 
+# .env dosyasını yükle
+load_dotenv()
 
-class Settings(BaseSettings):
+class Settings:
     # ── Google AI ──────────────────────────────
-    GOOGLE_API_KEY: str = ""
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-    # Model names – update these as new versions release
-    FLASH_MODEL: str = "gemini-2.0-flash"           # Low-latency multimodal tasks
-    PRO_MODEL:   str = "gemini-2.5-pro"             # Complex reasoning & long context
-    IMAGE_MODEL: str = "imagen-3.0-generate-002"    # Photorealistic image generation
+    # Model names
+    FLASH_MODEL = "gemini-2.0-flash"
+    PRO_MODEL = "gemini-2.5-pro"
+    IMAGE_MODEL = "imagen-3.0-generate-002"
 
     # ── Supabase ───────────────────────────────
-    SUPABASE_URL:         str = ""
-    SUPABASE_ANON_KEY:    str = ""
-    SUPABASE_SERVICE_KEY: str = ""
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
     # ── App ────────────────────────────────────
-    APP_ENV:   str = "development"
-    LOG_LEVEL: str = "INFO"
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        extra="ignore",
-    )
-
+    APP_ENV = os.getenv("APP_ENV", "development")
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    PORT = int(os.getenv("PORT", 8000))
 
 settings = Settings()
+
+# Güvenlik Kontrolü: Gerekli anahtarlar eksikse hata ver
+if not settings.GEMINI_API_KEY:
+    raise ValueError("Eksik ortam değişkeni: GEMINI_API_KEY. Lütfen backend/.env dosyasını doldurun.")
+if not settings.SUPABASE_URL:
+    raise ValueError("Eksik ortam değişkeni: SUPABASE_URL. Lütfen backend/.env dosyasını doldurun.")
+if not settings.SUPABASE_KEY:
+    raise ValueError("Eksik ortam değişkeni: SUPABASE_KEY. Lütfen backend/.env dosyasını doldurun.")
+
+# Geriye dönük uyumluluk (diğer modüllerin çalışması için)
+settings.GOOGLE_API_KEY = settings.GEMINI_API_KEY
+settings.SUPABASE_SERVICE_KEY = settings.SUPABASE_KEY

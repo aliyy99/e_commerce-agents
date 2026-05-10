@@ -2,8 +2,12 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { User, Heart, Bell, Settings, LogOut, ShoppingCart, ArrowRight } from 'lucide-react';
 
-const Profile = () => {
-  const [activeTab, setActiveTab] = React.useState('favorites');
+const Profile = ({ forceTab }) => {
+  const [activeTab, setActiveTab] = React.useState(forceTab || 'profile');
+
+  React.useEffect(() => {
+    if (forceTab) setActiveTab(forceTab);
+  }, [forceTab]);
 
   const favorites = [
     { id: 1, name: 'Sony WH-1000XM5', price: '$348.00', image: 'https://images.unsplash.com/photo-1613040809024-b4ef7ba99bc3?auto=format&fit=crop&q=80&w=400' },
@@ -13,35 +17,37 @@ const Profile = () => {
 
   return (
     <div className="flex gap-8">
-      {/* Profile Sidebar */}
-      <div className="w-64 flex flex-col gap-2">
-        <button 
-          onClick={() => setActiveTab('profile')}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'profile' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
-        >
-          <User className="w-5 h-5" />
-          Profil
-        </button>
-        <button 
-          onClick={() => setActiveTab('favorites')}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'favorites' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
-        >
-          <Heart className="w-5 h-5" />
-          Favorilerim
-        </button>
-        <button 
-          onClick={() => setActiveTab('alarms')}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'alarms' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
-        >
-          <Bell className="w-5 h-5" />
-          Alarmlarım
-        </button>
-        <div className="h-px bg-slate-100 my-2" />
-        <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-accent-rose hover:bg-accent-rose/5 transition-all font-bold">
-          <LogOut className="w-5 h-5" />
-          Çıkış Yap
-        </button>
-      </div>
+      {/* Profile Sidebar - Hidden if forced from main sidebar */}
+      {!forceTab && (
+        <div className="w-64 flex flex-col gap-2">
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'profile' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            <User className="w-5 h-5" />
+            Profil
+          </button>
+          <button 
+            onClick={() => setActiveTab('favorites')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'favorites' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            <Heart className="w-5 h-5" />
+            Favorilerim
+          </button>
+          <button 
+            onClick={() => setActiveTab('alarms')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'alarms' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            <Bell className="w-5 h-5" />
+            Alarmlarım
+          </button>
+          <div className="h-px bg-slate-100 my-2" />
+          <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-accent-rose hover:bg-accent-rose/5 transition-all font-bold">
+            <LogOut className="w-5 h-5" />
+            Çıkış Yap
+          </button>
+        </div>
+      )}
 
       {/* Content Area */}
       <div className="flex-1">
