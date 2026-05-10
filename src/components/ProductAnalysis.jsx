@@ -1,125 +1,175 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, ShieldCheck, AlertCircle, TrendingDown, ArrowUpRight } from 'lucide-react';
+import { ExternalLink, ShieldCheck, AlertCircle, TrendingDown, ArrowUpRight, Check, X, Info } from 'lucide-react';
 
-const ProductAnalysis = () => {
+const ProductAnalysis = ({ loading }) => {
   const stores = [
-    { name: 'Amazon', price: '$1,299.00', status: 'In Stock', color: 'text-orange-400' },
-    { name: 'eBay', price: '$1,245.50', status: 'Limited', color: 'text-blue-400' },
-    { name: 'Local Store', price: '$1,350.00', status: 'In Stock', color: 'text-emerald-400' },
-  ];
+    { name: 'eBay', price: 1245.50, status: 'Limited', color: 'text-blue-400' },
+    { name: 'Amazon', price: 1299.00, status: 'In Stock', color: 'text-orange-400' },
+    { name: 'Local Store', price: 1350.00, status: 'In Stock', color: 'text-emerald-400' },
+  ].sort((a, b) => a.price - b.price);
+
+  if (loading) {
+    return (
+      <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-4 h-96 skeleton" />
+        <div className="lg:col-span-8 grid grid-cols-2 gap-6">
+          <div className="h-48 skeleton" />
+          <div className="h-48 skeleton" />
+          <div className="col-span-2 h-48 skeleton" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Product Image & Info */}
+    <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Bento 1: Product Visual & Trust (Radial) */}
       <motion.div 
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="lg:col-span-1 glass-card p-6 flex flex-col gap-6"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="lg:col-span-4 glass-card p-6 flex flex-col gap-8 h-fit bg-white"
       >
-        <div className="aspect-square bg-slate-50 rounded-xl overflow-hidden relative group border border-slate-100">
-          <div className="absolute inset-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+        <div className="relative group">
+          <div className="aspect-square rounded-2xl overflow-hidden border border-slate-100">
             <img 
               src="https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&q=80&w=800" 
               alt="MacBook Pro" 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
             />
           </div>
-          <div className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-md rounded-lg shadow-sm border border-slate-200">
-            <TrendingDown className="w-5 h-5 text-primary" />
+          <div className="absolute -bottom-4 -right-4 w-32 h-32 glass-card flex flex-col items-center justify-center p-4 shadow-xl border-primary/20 bg-white">
+            <div className="relative w-16 h-16 mb-1">
+              <svg className="w-full h-full" viewBox="0 0 36 36">
+                <path className="text-slate-100 stroke-current" strokeWidth="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <motion.path 
+                  initial={{ strokeDasharray: "0, 100" }}
+                  animate={{ strokeDasharray: "94, 100" }}
+                  transition={{ duration: 2, ease: "easeOut" }}
+                  className="text-primary stroke-current" 
+                  strokeWidth="3" 
+                  strokeLinecap="round"
+                  fill="none" 
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-900">94%</div>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Trust Score</span>
           </div>
         </div>
-        <div>
-          <h3 className="text-xl font-display font-bold text-slate-900">MacBook Pro 14" M3</h3>
-          <p className="text-sm text-slate-500 mt-1">Electronics • Premium Laptops</p>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="flex justify-between items-end">
-            <span className="text-sm text-slate-400">Analyst Trust Score</span>
-            <span className="text-lg font-bold text-primary">94%</span>
-          </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <motion.div 
-              className="h-full bg-primary"
-              initial={{ width: 0 }}
-              animate={{ width: '94%' }}
-              transition={{ delay: 0.5, duration: 1.5 }}
-            />
-          </div>
-          <p className="text-[11px] text-slate-400 flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3 text-primary" />
-            Verified by Analyst Agent: 1.2k authentic reviews scanned.
+
+        <div className="mt-2">
+          <h3 className="text-2xl font-display font-black text-slate-900">MacBook Pro 14" M3</h3>
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            Verified by Analyst Cluster B
           </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {['M3 Pro Chip', '18GB RAM', '512GB SSD'].map(tag => (
+            <span key={tag} className="px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-[10px] font-bold text-slate-600">
+              {tag}
+            </span>
+          ))}
         </div>
       </motion.div>
 
-      {/* Analysis Details */}
+      {/* Bento 2: Strategic Advice (Glow) */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="lg:col-span-2 space-y-8"
+        className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6"
       >
-        {/* Strategic Advice */}
-        <div className="glass-card p-8 bg-gradient-to-br from-white to-primary/5 border-primary/20">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className="px-4 py-1 bg-primary text-white font-extrabold rounded-lg text-sm tracking-tighter">
-                  AL (BUY)
-                </span>
-                <span className="text-slate-400 text-sm font-medium">Strategic Advice</span>
+        <div className="glass-card p-8 bg-gradient-to-br from-primary/5 to-transparent border-primary/20 glow-advice flex flex-col justify-between bg-white">
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <span className="px-4 py-1.5 bg-primary text-white font-black rounded-lg text-xs uppercase tracking-tighter">
+                AL (BUY)
+              </span>
+              <div className="flex -space-x-2">
+                {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-slate-200" />)}
               </div>
-              <h2 className="text-2xl font-display font-bold mb-3 text-slate-900">AI Öngörüsü (AI Insights)</h2>
-              <p className="text-slate-600 text-sm leading-relaxed max-w-lg">
-                Fiyat şu an 30 günlük ortalamanın %12 altında. Detective Agent, önümüzdeki 2 hafta içinde bir indirim beklemiyor. Mevcut stok seviyeleri kritik.
-              </p>
             </div>
-            <div className="flex flex-col items-center">
-              <div className="text-4xl font-black text-primary mb-1">$1,245.50</div>
-              <div className="text-xs text-slate-400 uppercase tracking-widest font-bold">Best Current Price</div>
+            <h2 className="text-2xl font-display font-black mb-4 text-slate-900">AI Öngörüsü</h2>
+            <p className="text-slate-500 text-sm leading-relaxed">
+              Fiyat şu an 30 günlük ortalamanın <span className="text-primary font-bold">%12 altında</span>. 
+              Mevcut stok seviyeleri kritik, önümüzdeki 2 hafta içinde bir indirim beklenmiyor.
+            </p>
+          </div>
+          <div className="mt-8 pt-6 border-t border-slate-100 flex items-end justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recommended Price</p>
+              <p className="text-3xl font-black text-slate-900">$1,245.50</p>
             </div>
+            <button className="btn-primary py-2.5 px-5 text-sm uppercase">Satın Al</button>
           </div>
         </div>
 
-        {/* Price Table */}
-        <div className="glass-card overflow-hidden">
-          <div className="p-6 border-b border-slate-100">
-            <h3 className="font-display font-bold flex items-center gap-2 text-slate-900">
-              <ExternalLink className="w-4 h-4 text-primary" />
-              Store Comparison
-            </h3>
+        {/* Bento 3: Price Ranking */}
+        <div className="glass-card p-6 bg-white border-slate-100">
+          <h3 className="font-display font-bold text-slate-900 mb-6 flex items-center gap-2">
+            <TrendingDown className="w-4 h-4 text-primary" />
+            Market Ranking
+          </h3>
+          <div className="space-y-4">
+            {stores.map((store, i) => (
+              <div key={store.name} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 group cursor-pointer">
+                <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center text-xs font-black text-slate-400 group-hover:text-primary transition-colors shadow-sm">
+                  #{i+1}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900">{store.name}</p>
+                  <p className="text-[10px] text-slate-400">{store.status}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black text-slate-900">${store.price.toLocaleString()}</p>
+                  <p className="text-[10px] text-primary font-bold">Best Deal</p>
+                </div>
+              </div>
+            ))}
           </div>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500">
-                <th className="p-4 font-semibold uppercase text-[10px] tracking-wider">Store</th>
-                <th className="p-4 font-semibold uppercase text-[10px] tracking-wider">Availability</th>
-                <th className="p-4 font-semibold uppercase text-[10px] tracking-wider">Price</th>
-                <th className="p-4 font-semibold uppercase text-[10px] tracking-wider text-right">Link</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {stores.map((store) => (
-                <tr key={store.name} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-4 font-bold">{store.name}</td>
-                  <td className="p-4">
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      {store.status}
-                    </span>
-                  </td>
-                  <td className={`p-4 font-bold text-slate-900`}>{store.price}</td>
-                  <td className="p-4 text-right">
-                    <button className="p-2 hover:bg-primary/10 rounded-lg text-primary transition-all">
-                      <ArrowUpRight className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
+        </div>
+
+        {/* Bento 4: AI Pro/Con List */}
+        <div className="md:col-span-2 glass-card p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-white border-slate-100">
+          <div>
+            <h4 className="text-xs font-black text-primary uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Check className="w-4 h-4" />
+              Güçlü Yönler (Pros)
+            </h4>
+            <ul className="space-y-3">
+              {[
+                'Üstün M3 performans verimliliği',
+                'Ekran parlaklığı ve renk doğruluğu',
+                'Uzun batarya ömrü (22 saat+)',
+              ].map(item => (
+                <li key={item} className="text-sm text-slate-600 flex items-start gap-3">
+                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
+                  {item}
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-xs font-black text-accent-rose uppercase tracking-widest mb-4 flex items-center gap-2">
+              <X className="w-4 h-4" />
+              Zayıf Yönler (Cons)
+            </h4>
+            <ul className="space-y-3">
+              {[
+                'Yüksek başlangıç fiyatı',
+                'Base modelde 8GB RAM sınırlaması',
+                'SSD hızları önceki nesle göre stabil değil',
+              ].map(item => (
+                <li key={item} className="text-sm text-slate-600 flex items-start gap-3">
+                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-accent-rose/40 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </motion.div>
     </div>

@@ -52,6 +52,15 @@ class VisionRequest(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
+# Detective Agent
+# ──────────────────────────────────────────────────────────────
+class DetectiveRequest(BaseModel):
+    """Payload for Detective Agent."""
+    product_keywords: str = Field(..., description="Keywords extracted by Vision Agent.")
+    locale: str = Field(default="tr")
+
+
+# ──────────────────────────────────────────────────────────────
 # Analyst Agent  →  POST /analyze/reviews
 # ──────────────────────────────────────────────────────────────
 class PricePoint(BaseModel):
@@ -64,7 +73,7 @@ class PricePoint(BaseModel):
 class AnalystRequest(BaseModel):
     """
     Payload for the Analyst Agent.
-    Accepts scraped review texts and a price-history list.
+    Accepts scraped review texts and a price-history list from Detective Agent.
     """
     product_id:    str             = Field(..., description="Internal product identifier.")
     product_name:  str             = Field(..., example="MacBook Pro 14\" M3 Pro")
@@ -98,6 +107,15 @@ class StyleRequest(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
+# Tracking System
+# ──────────────────────────────────────────────────────────────
+class TrackProductRequest(BaseModel):
+    user_id: str
+    product_id: str
+    target_price: float
+
+
+# ──────────────────────────────────────────────────────────────
 # Orchestrator  →  POST /orchestrate
 # ──────────────────────────────────────────────────────────────
 class OrchestrateRequest(BaseModel):
@@ -108,6 +126,8 @@ class OrchestrateRequest(BaseModel):
     query:         str                   = Field(..., example="Find me the best MacBook Pro deal")
     category:      ProductCategory       = Field(default=ProductCategory.OTHER)
     vision:        Optional[VisionRequest]   = None
+    detective:     Optional[DetectiveRequest]= None
     analyst:       Optional[AnalystRequest]  = None
     style:         Optional[StyleRequest]    = None
     save_to_db:    bool                  = Field(default=True, description="Persist results to Supabase.")
+    session_id:    Optional[str]         = Field(None, description="WebSocket session ID for real-time updates.")

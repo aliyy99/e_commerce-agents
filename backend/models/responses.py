@@ -30,6 +30,7 @@ class VisionResponse(BaseModel):
     status:       AgentStatus
     agent:        str              = "vision_agent (gemini-2.0-flash)"
     product_name: Optional[str]   = None
+    search_keywords: Optional[str] = Field(None, description="Keywords for Detective Agent.")
     brand:        Optional[str]   = None
     category:     Optional[str]   = None
     specs:        List[DetectedSpec] = Field(default_factory=list)
@@ -37,6 +38,27 @@ class VisionResponse(BaseModel):
     raw_text:     Optional[str]   = None   # Full model output for debugging
     model_used:   str             = "gemini-2.0-flash"
     error_detail: Optional[str]   = None
+
+
+# ──────────────────────────────────────────────────────────────
+# Detective Agent Response
+# ──────────────────────────────────────────────────────────────
+class StoreResult(BaseModel):
+    store: str
+    price: float
+    url: str
+
+class DetectiveResponse(BaseModel):
+    """
+    Structured output from Detective Agent (Search Logic).
+    """
+    status:       AgentStatus
+    agent:        str = "detective_agent (search)"
+    query_used:   str
+    retries:      int
+    found_prices: List[StoreResult] = Field(default_factory=list)
+    reviews_found:List[str] = Field(default_factory=list)
+    error_detail: Optional[str] = None
 
 
 # ──────────────────────────────────────────────────────────────
@@ -55,6 +77,8 @@ class ReviewInsight(BaseModel):
     chronic_issues:   List[str] = Field(default_factory=list, example=["Fan noise under load", "Poor battery life"])
     positive_themes:  List[str] = Field(default_factory=list)
     average_sentiment: float    = Field(..., ge=-1.0, le=1.0)
+    sentiment_map:    Dict[str, float] = Field(default_factory=dict, description="e.g., {'Konfor': 0.8, 'Ses Kalitesi': 0.9}")
+    red_flags:        List[str] = Field(default_factory=list, description="Critical warnings from users.")
 
 
 class PriceTrend(BaseModel):
@@ -78,7 +102,8 @@ class AnalystResponse(BaseModel):
     confidence:    float         = Field(..., ge=0.0, le=1.0)
     review_insight: ReviewInsight
     price_trend:   PriceTrend
-    ai_summary:    str           = Field(..., description="Plain-language buying recommendation in the requested locale.")
+    ai_summary:    str           = Field(..., description="Plain-language buying recommendation.")
+    final_recommendation: str    = Field(..., description="Detailed Buy/Wait reasoning.")
     model_used:    str           = "gemini-2.5-pro"
     error_detail:  Optional[str] = None
 
@@ -112,6 +137,7 @@ class OrchestrateResponse(BaseModel):
     query:          str
     agents_invoked: List[str]
     vision_result:  Optional[VisionResponse]  = None
+    detective_result: Optional[DetectiveResponse] = None
     analyst_result: Optional[AnalystResponse] = None
     style_result:   Optional[StyleResponse]   = None
     db_record_id:   Optional[str]             = Field(None, description="Supabase row UUID if save_to_db=True.")

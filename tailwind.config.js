@@ -17,13 +17,22 @@ export default {
         accent: {
           emerald: "#10B981",
           indigo: "#6366F1",
+          amber: "#F59E0B",
+          rose: "#F43F5E",
         },
         slate: {
           900: "#0F172A",
+          800: "#1E293B",
+          700: "#334155",
+          600: "#475569",
           500: "#64748B",
+          400: "#94A3B8",
+          300: "#CBD5E1",
           200: "#E2E8F0",
+          100: "#F1F5F9",
+          50: "#F8FAFC",
         },
-        glass: "rgba(255, 255, 255, 0.8)",
+        glass: "rgba(255, 255, 255, 0.7)",
         "glass-border": "rgba(0, 0, 0, 0.05)",
       },
       fontFamily: {

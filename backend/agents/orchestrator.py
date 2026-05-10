@@ -18,38 +18,46 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from ..models.requests import OrchestrateRequest, ProductCategory
+from fastapi import WebSocket
+
+from ..models.requests import OrchestrateRequest, ProductCategory, DetectiveRequest, AnalystRequest, PricePoint
 from ..models.responses import (
     AgentStatus, OrchestrateResponse,
-    VisionResponse, AnalystResponse, StyleResponse,
+    VisionResponse, AnalystResponse, StyleResponse, DetectiveResponse
 )
 from ..agents.vision_agent     import run_vision_agent
+from ..agents.detective_agent  import run_detective_agent
 from ..agents.analyst_agent    import run_analyst_agent
 from ..agents.visualizer_agent import run_visualizer_agent
 from ..db import upsert_analysis_result
 
 logger = logging.getLogger("shopsage.orchestrator")
 
+# Basic WebSocket Manager (in a real app, this would be more robust)
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, WebSocket] = {}
 
-# ─────────────────────────────────────────────────────────────
-# Agent decision helpers
-# ─────────────────────────────────────────────────────────────
-def _needs_vision(req: OrchestrateRequest) -> bool:
-    """ORCHESTRATOR: Returns True if the request contains image data."""
-    return req.vision is not None
+    async def connect(self, websocket: WebSocket, session_id: str):
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
 
+    def disconnect(self, session_id: str):
+        if session_id in self.active_connections:
+            del self.active_connections[session_id]
 
-def _needs_analyst(req: OrchestrateRequest) -> bool:
-    """ORCHESTRATOR: Returns True if reviews + price history are provided."""
-    return req.analyst is not None
+    async def send_status(self, session_id: str, message: str):
+        if session_id in self.active_connections:
+            try:
+                await self.active_connections[session_id].send_json({"type": "status", "message": message})
+            except Exception as e:
+                logger.error("WebSocket send error: %s", e)
 
+manager = ConnectionManager()
 
-def _needs_visualizer(req: OrchestrateRequest) -> bool:
-    """ORCHESTRATOR: Returns True for fashion/furniture queries with style payload."""
-    return (
-        req.style is not None
-        and req.category in (ProductCategory.FASHION, ProductCategory.FURNITURE)
-    )
+async def emit_status(session_id: str | None, message: str):
+    if session_id:
+        await manager.send_status(session_id, message)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -57,69 +65,102 @@ def _needs_visualizer(req: OrchestrateRequest) -> bool:
 # ─────────────────────────────────────────────────────────────
 async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     """
-    AGENT: Orchestrator
-    ───────────────────
-    Central workflow engine that:
-      1. Determines which agents are needed for this request.
-      2. Runs Vision & Analyst concurrently (asyncio.gather).
-      3. Runs Visualizer independently (image generation is sequential).
-      4. Merges all results into a single OrchestrateResponse.
-      5. Persists to Supabase if save_to_db=True.
-
-    Concurrency strategy:
-      • Vision + Analyst → asyncio.gather (parallel I/O-bound calls)
-      • Visualizer       → awaited after gather (avoids rate-limit spikes)
-
-    Args:
-        request: Validated OrchestrateRequest from the route handler.
-
-    Returns:
-        OrchestrateResponse aggregating all agent outputs.
+    AGENT: Orchestrator (Chain of Thought Workflow)
+    ───────────────────────────────────────────────
+    1. Vision Agent (if image): Identifies product & extracts keywords.
+    2. Detective Agent: Takes keywords, searches for prices and reviews.
+    3. Analyst Agent: Takes reviews/prices, performs deep analysis.
+    4. Visualizer Agent (parallel if applicable): Generates style image.
     """
     t_start = time.monotonic()
     agents_invoked: list[str] = []
-    vision_result:  VisionResponse  | None = None
+    
+    vision_result:  VisionResponse | None = None
+    detective_result: DetectiveResponse | None = None
     analyst_result: AnalystResponse | None = None
-    style_result:   StyleResponse   | None = None
+    style_result:   StyleResponse | None = None
     db_record_id:   str | None = None
+    
+    sid = request.session_id
 
-    logger.info("Orchestrator → query=%r  category=%s", request.query, request.category)
+    await emit_status(sid, "Orkestrasyon başlatıldı...")
 
-    # ── PHASE 1: Concurrent Vision + Analyst ──────────────────
-    tasks = []
-
-    if _needs_vision(request):
-        tasks.append(_run_vision(request))
+    # ── 1. Vision Agent ─────────────────────────────
+    if request.vision is not None:
         agents_invoked.append("vision_agent")
+        await emit_status(sid, "Görsel işleniyor (Gemini 2.0 Flash)...")
+        try:
+            vision_result = await run_vision_agent(request.vision)
+            if vision_result.status != AgentStatus.ERROR:
+                await emit_status(sid, f"Ürün tespit edildi: {vision_result.product_name}")
+        except Exception as e:
+            vision_result = _vision_error(e)
 
-    if _needs_analyst(request):
-        tasks.append(_run_analyst(request))
+    # Determine keywords for search
+    keywords = None
+    if request.detective:
+        keywords = request.detective.product_keywords
+    elif vision_result and vision_result.search_keywords:
+        keywords = vision_result.search_keywords
+    elif request.query and len(request.query) > 3:
+        keywords = request.query
+
+    # ── 2. Detective Agent ──────────────────────────
+    if keywords:
+        agents_invoked.append("detective_agent")
+        req = DetectiveRequest(product_keywords=keywords)
+        
+        async def emit_det(msg): await emit_status(sid, msg)
+        
+        try:
+            detective_result = await run_detective_agent(req, emit_status=emit_det)
+        except Exception as e:
+            detective_result = DetectiveResponse(
+                status=AgentStatus.ERROR, query_used=keywords, retries=0, error_detail=str(e)
+            )
+
+    # ── 3. Analyst Agent ────────────────────────────
+    # If we have scraped data, or if user explicitly provided analyst payload
+    analyst_req = None
+    if detective_result and detective_result.status != AgentStatus.ERROR and detective_result.found_prices:
+        prices = [
+            PricePoint(date=datetime.now().strftime("%Y-%m-%d"), price=p.price, store=p.store)
+            for p in detective_result.found_prices
+        ]
+        analyst_req = AnalystRequest(
+            product_id=str(uuid.uuid4()),
+            product_name=vision_result.product_name if vision_result else keywords,
+            reviews=detective_result.reviews_found,
+            price_history=prices
+        )
+    elif request.analyst:
+        analyst_req = request.analyst
+
+    if analyst_req:
         agents_invoked.append("analyst_agent")
+        async def emit_ana(msg): await emit_status(sid, msg)
+        try:
+            analyst_result = await run_analyst_agent(analyst_req, emit_status=emit_ana)
+        except Exception as e:
+            analyst_result = _analyst_error(e)
 
-    if tasks:
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        idx = 0
-        if _needs_vision(request):
-            vision_result = results[idx] if not isinstance(results[idx], Exception) else _vision_error(results[idx])
-            idx += 1
-        if _needs_analyst(request):
-            analyst_result = results[idx] if not isinstance(results[idx], Exception) else _analyst_error(results[idx])
-
-    # ── PHASE 2: Sequential Visualizer ────────────────────────
-    if _needs_visualizer(request):
+    # ── 4. Visualizer Agent ─────────────────────────
+    if request.style and request.category in (ProductCategory.FASHION, ProductCategory.FURNITURE):
         agents_invoked.append("visualizer_agent")
+        await emit_status(sid, "Görsel (stil) üretiliyor (Imagen 3)...")
         try:
             style_result = await run_visualizer_agent(request.style)
         except Exception as err:
-            logger.error("Visualizer failed in orchestrator: %s", err)
             style_result = StyleResponse(status=AgentStatus.ERROR, error_detail=str(err))
 
-    # ── PHASE 3: Persist to Supabase ──────────────────────────
+
+    # ── PHASE 5: Persist to Supabase ──────────────────────────
     if request.save_to_db and (vision_result or analyst_result):
         try:
+            await emit_status(sid, "Sonuçlar Supabase'e kaydediliyor...")
             db_record_id = await upsert_analysis_result({
                 "id":            str(uuid.uuid4()),
-                "product_id":    getattr(request.analyst, "product_id", None),
+                "product_id":    analyst_result.product_id if analyst_result else None,
                 "query":         request.query,
                 "category":      request.category,
                 "vision_result": vision_result.model_dump()  if vision_result  else None,
@@ -133,8 +174,9 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     duration_ms = int((time.monotonic() - t_start) * 1000)
     logger.info("Orchestrator → done  agents=%s  duration=%dms", agents_invoked, duration_ms)
 
-    # Determine overall status
-    all_results = [r for r in [vision_result, analyst_result, style_result] if r]
+    await emit_status(sid, f"Orkestrasyon tamamlandı. ({duration_ms}ms)")
+
+    all_results = [r for r in [vision_result, detective_result, analyst_result, style_result] if r]
     if any(r.status == AgentStatus.ERROR for r in all_results):
         overall = AgentStatus.ERROR
     elif any(r.status == AgentStatus.FALLBACK for r in all_results):
@@ -147,27 +189,15 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
         query=request.query,
         agents_invoked=agents_invoked,
         vision_result=vision_result,
+        detective_result=detective_result,
         analyst_result=analyst_result,
         style_result=style_result,
         db_record_id=db_record_id,
         duration_ms=duration_ms,
     )
 
-
-# ─────────────────────────────────────────────────────────────
-# Private wrappers (allow asyncio.gather to return typed results)
-# ─────────────────────────────────────────────────────────────
-async def _run_vision(req: OrchestrateRequest) -> VisionResponse:
-    return await run_vision_agent(req.vision)
-
-
-async def _run_analyst(req: OrchestrateRequest) -> AnalystResponse:
-    return await run_analyst_agent(req.analyst)
-
-
 def _vision_error(err: Exception) -> VisionResponse:
     return VisionResponse(status=AgentStatus.ERROR, error_detail=str(err))
-
 
 def _analyst_error(err: Exception) -> AnalystResponse:
     from ..models.responses import BuyStrategy, ReviewInsight, PriceTrend
@@ -177,8 +207,9 @@ def _analyst_error(err: Exception) -> AnalystResponse:
         product_name="unknown",
         strategy=BuyStrategy.UNCERTAIN,
         confidence=0.0,
-        review_insight=ReviewInsight(total_reviews=0, fake_review_pct=0, average_sentiment=0),
+        review_insight=ReviewInsight(total_reviews=0, fake_review_pct=0, average_sentiment=0, sentiment_map={}, red_flags=[]),
         price_trend=PriceTrend(current_price=0, lowest_30d=0, highest_30d=0, trend_direction="unknown"),
         ai_summary="",
+        final_recommendation="",
         error_detail=str(err),
     )

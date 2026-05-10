@@ -40,6 +40,8 @@ You are an elite product intelligence analyst with expertise in:
 • Identifying chronic product defects from repeated complaint patterns
 • Evaluating pricing trends and predicting future price movements
 • Generating clear buy/wait/avoid recommendations
+• Creating Sentiment Maps (e.g., Comfort, Audio Quality, Battery)
+• Catching Red Flags ("fake product", "arrived broken")
 
 You MUST respond in strict JSON (no markdown, no prose outside JSON).
 Response locale: {locale}
@@ -63,9 +65,12 @@ Analyze the above data and return ONLY this JSON structure:
   "chronic_issues": ["issue 1", "issue 2"],
   "positive_themes": ["theme 1", "theme 2"],
   "average_sentiment": -1.0 to 1.0,
+  "sentiment_map": {{"Konfor": 0.8, "Ses Kalitesi": 0.9, "Batarya": -0.5}},
+  "red_flags": ["Critical warning 1", "Critical warning 2"],
   "trend_direction": "upward | downward | stable",
   "predicted_drop": "description or null",
-  "ai_summary": "2-3 sentence plain-language recommendation"
+  "ai_summary": "2-3 sentence plain-language summary",
+  "final_recommendation": "Detailed strategic decision merging price, reviews, and trends (e.g. 'Şu an almanı öneririm çünkü...')"
 }}
 """.strip()
 
@@ -167,16 +172,17 @@ async def _call_pro_analyst(
 # ─────────────────────────────────────────────────────────────
 # Public entry-point
 # ─────────────────────────────────────────────────────────────
-async def run_analyst_agent(request: AnalystRequest) -> AnalystResponse:
+async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> AnalystResponse:
     """
     AGENT: Analyst Agent  (Gemini 2.5 Pro)
     ──────────────────────────────────────
     Analyzes scraped reviews and price history to produce:
       • Fake review percentage estimate
       • Chronic product issue list
-      • Sentiment score
+      • Sentiment score and Sentiment Map
+      • Red Flag detection
       • Buy / Wait / Avoid recommendation
-      • Plain-language AI summary
+      • Plain-language AI summary and Final Strategy
 
     This agent always uses Gemini Pro — there is no Flash equivalent
     for deep multi-step analysis over thousands of review tokens.
@@ -191,6 +197,9 @@ async def run_analyst_agent(request: AnalystRequest) -> AnalystResponse:
         "AnalystAgent → starting (product=%s, reviews=%d)",
         request.product_name, len(request.reviews),
     )
+
+    if emit_status:
+        await emit_status("Analyst Agent verileri yorumluyor (Gemini 2.5 Pro)...")
 
     # Pre-compute price trend (synchronous, cheap)
     price_trend = _compute_price_trend(request.price_history)
@@ -217,8 +226,12 @@ async def run_analyst_agent(request: AnalystRequest) -> AnalystResponse:
             ),
             price_trend=price_trend,
             ai_summary="Analiz sırasında bir hata oluştu.",
+            final_recommendation="Analiz yapılamadı.",
             error_detail=str(err),
         )
+
+    if emit_status:
+        await emit_status("Analiz tamamlandı, final strateji oluşturuldu.")
 
     # Merge predicted_drop from model into pre-computed trend
     price_trend.predicted_drop  = data.get("predicted_drop")
@@ -230,6 +243,8 @@ async def run_analyst_agent(request: AnalystRequest) -> AnalystResponse:
         chronic_issues=data.get("chronic_issues", []),
         positive_themes=data.get("positive_themes", []),
         average_sentiment=float(data.get("average_sentiment", 0)),
+        sentiment_map=data.get("sentiment_map", {}),
+        red_flags=data.get("red_flags", []),
     )
 
     strategy_map = {
@@ -249,4 +264,5 @@ async def run_analyst_agent(request: AnalystRequest) -> AnalystResponse:
         review_insight=review_insight,
         price_trend=price_trend,
         ai_summary=data.get("ai_summary", ""),
+        final_recommendation=data.get("final_recommendation", "Belirsiz."),
     )

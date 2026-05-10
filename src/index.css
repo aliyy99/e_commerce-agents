@@ -4,13 +4,13 @@
 
 @layer base {
   body {
-    @apply antialiased overflow-x-hidden;
+    @apply antialiased overflow-x-hidden bg-background text-slate-900;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white border border-slate-200 rounded-2xl shadow-soft;
+    @apply bg-glass border border-glass-border rounded-2xl backdrop-blur-xl shadow-soft;
   }
   
   .glass-sidebar {
@@ -18,16 +18,31 @@
   }
 
   .btn-primary {
-    @apply px-6 py-3 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-primary/20;
+    @apply px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition-all duration-300 shadow-lg shadow-primary/20 active:scale-95;
   }
 
   .input-glass {
-    @apply bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-500 text-slate-900;
+    @apply bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 text-slate-900;
   }
 
   .status-dot {
     @apply w-2 h-2 rounded-full bg-primary animate-pulse;
   }
+
+  .bento-box {
+    @apply grid gap-6;
+  }
+
+  .glow-advice {
+    box-shadow: 0 0 20px rgba(5, 150, 105, 0.1);
+    animation: glow-pulse 2s infinite ease-in-out;
+  }
+}
+
+@keyframes glow-pulse {
+  0% { box-shadow: 0 0 20px rgba(5, 150, 105, 0.05); }
+  50% { box-shadow: 0 0 40px rgba(5, 150, 105, 0.15); }
+  100% { box-shadow: 0 0 20px rgba(5, 150, 105, 0.05); }
 }
 
 /* Custom Scrollbar */
@@ -44,5 +59,9 @@
 }
 
 .gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent-emerald font-bold;
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent-indigo font-bold;
+}
+
+.skeleton {
+  @apply bg-slate-100 animate-pulse rounded-lg;
 }

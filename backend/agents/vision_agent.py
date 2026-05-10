@@ -38,6 +38,7 @@ with the following structure:
 
 {
   "product_name": "Full product name with variant",
+  "search_keywords": "Short, critical keywords for searching (e.g. 'Sony WH-1000XM5')",
   "brand": "Brand name",
   "category": "Electronics | Fashion | Furniture | Other",
   "specs": [
@@ -197,6 +198,7 @@ async def run_vision_agent(request: VisionRequest) -> VisionResponse:
     return VisionResponse(
         status=status,
         product_name=data.get("product_name"),
+        search_keywords=data.get("search_keywords"),
         brand=data.get("brand"),
         category=data.get("category"),
         specs=specs,

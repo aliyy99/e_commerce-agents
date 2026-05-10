@@ -1,61 +1,85 @@
 import React from 'react';
+import { 
+  LayoutDashboard, 
+  Search, 
+  History, 
+  TrendingUp, 
+  Zap, 
+  Shield,
+  CreditCard,
+  User
+} from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Eye, Search, BarChart3, Cpu } from 'lucide-react';
 
-const agents = [
-  { id: 'vision', name: 'Vision Agent', status: 'Identifying...', icon: Eye },
-  { id: 'detective', name: 'Detective Agent', status: 'Scraping Prices...', icon: Search },
-  { id: 'analyst', name: 'Analyst Agent', status: 'Checking Reviews...', icon: BarChart3 },
-];
+const Sidebar = ({ activePage, onNavigate }) => {
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'search', label: 'Intelligence Search', icon: Search },
+    { id: 'history', label: 'Analysis History', icon: History },
+    { id: 'market', label: 'Market Trends', icon: TrendingUp },
+  ];
 
-const Sidebar = () => {
   return (
-    <div className="w-80 h-screen glass-sidebar p-6 flex flex-col gap-8 fixed left-0 top-0 z-50">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary rounded-lg">
-          <Cpu className="w-6 h-6 text-white" />
+    <aside className="fixed left-0 top-0 h-full w-72 bg-white/50 backdrop-blur-xl border-r border-slate-200 z-50 flex flex-col p-6">
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-4 mb-10 group cursor-pointer" onClick={() => onNavigate('dashboard')}>
+        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
+          <Zap className="w-6 h-6 text-white fill-white" />
         </div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-          ShopSage <span className="text-primary">AI</span>
-        </h1>
+        <h1 className="text-xl font-display font-black tracking-tighter text-slate-900">SHOPSAGE<span className="text-primary">.AI</span></h1>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest px-2">
-          Active AI Agents
-        </h2>
-        {agents.map((agent) => (
-          <motion.div
-            key={agent.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-primary/20 hover:bg-primary/5 transition-all group cursor-pointer"
+      {/* Nav */}
+      <nav className="flex-1 space-y-1.5">
+        <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Intelligence Mesh</p>
+        {menuItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => onNavigate(item.id)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+              activePage === item.id 
+              ? 'bg-primary text-white font-bold shadow-lg shadow-primary/10' 
+              : 'text-slate-500 hover:bg-primary/5 hover:text-primary'
+            }`}
           >
-            <div className="p-2 rounded-xl bg-white text-primary border border-slate-100 group-hover:bg-primary group-hover:text-white transition-colors shadow-sm">
-              <agent.icon className="w-5 h-5" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-slate-700">{agent.name}</p>
-              <p className="text-xs text-slate-500">{agent.status}</p>
-            </div>
-            <div className="status-dot shadow-[0_0_8px_rgba(5,150,105,0.3)]" />
-          </motion.div>
+            <item.icon className={`w-5 h-5 ${activePage === item.id ? 'text-white' : 'text-slate-400 group-hover:text-primary transition-colors'}`} />
+            <span className="text-sm">{item.label}</span>
+          </button>
         ))}
-      </div>
+      </nav>
 
-      <div className="mt-auto p-4 rounded-2xl bg-primary/5 border border-primary/10">
-        <p className="text-xs font-medium text-slate-600 mb-2">System Load</p>
-        <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-          <motion.div 
-            className="h-full bg-primary"
-            initial={{ width: 0 }}
-            animate={{ width: '65%' }}
-            transition={{ duration: 2, ease: "easeOut" }}
-          />
+      {/* Footer Card */}
+      <div className="mt-auto pt-6 border-t border-slate-100">
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/10 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Shield className="w-12 h-12 text-primary" />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-3">
+              <CreditCard className="w-4 h-4 text-primary" />
+              <span className="text-[10px] font-black text-primary uppercase tracking-widest">Enterprise Plan</span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">Ajanlarınızı %100 kapasiteyle kullanın.</p>
+            <button 
+              onClick={() => onNavigate('profile')}
+              className="w-full py-2.5 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg text-xs font-black transition-all border border-primary/20"
+            >
+              UPGRADE NOW
+            </button>
+          </div>
         </div>
-        <p className="text-[10px] text-slate-400 mt-2 text-right">Agentic Mesh: Optimized</p>
+        
+        <button 
+          onClick={() => onNavigate('profile')}
+          className={`w-full mt-4 flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+            activePage === 'profile' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <User className="w-5 h-5 text-slate-400" />
+          <span className="text-sm font-bold">Account Settings</span>
+        </button>
       </div>
-    </div>
+    </aside>
   );
 };
 

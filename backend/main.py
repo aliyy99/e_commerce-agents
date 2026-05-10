@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .routes import vision_router, analyze_router, style_router, orchestrate_router
+from .routes import vision_router, analyze_router, style_router, orchestrate_router, tracking_router
 
 # ── Logging setup ─────────────────────────────────────────────
 logging.basicConfig(
@@ -34,8 +34,9 @@ app = FastAPI(
     title="ShopSage AI – Hybrid Multi-Agent Backend",
     description=(
         "A high-performance, async FastAPI backend powering the ShopSage AI dashboard. "
-        "Orchestrates three specialized AI agents:\n\n"
+        "Orchestrates specialized AI agents:\n\n"
         "- **Vision Agent** (Gemini Flash) – product identification from images\n"
+        "- **Detective Agent** – search execution and review scraping\n"
         "- **Analyst Agent** (Gemini Pro) – review analysis & buy/wait strategy\n"
         "- **Visualizer Agent** (Imagen 3) – outfit & room placement generation\n\n"
         "All endpoints are validated with Pydantic v2. Results are persisted in Supabase."
@@ -50,7 +51,7 @@ app = FastAPI(
 # ── CORS ──────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite + Next.js dev
+    allow_origins=["*"],  # Allow all for dev WebSockets
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +84,7 @@ app.include_router(vision_router,      prefix="/api/v1")
 app.include_router(analyze_router,     prefix="/api/v1")
 app.include_router(style_router,       prefix="/api/v1")
 app.include_router(orchestrate_router, prefix="/api/v1")
+app.include_router(tracking_router,    prefix="/api/v1")
 
 
 # ── Health check ──────────────────────────────────────────────
