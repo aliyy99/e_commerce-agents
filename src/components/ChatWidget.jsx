@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Send, X, Bot, User, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, User, Loader2, Sparkles } from 'lucide-react';
+import { chatWithAssistant } from '../services/api';
 
-const ChatWidget = ({ contextData }) => {
+const ChatWidget = ({ contextProduct }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Merhaba! Ben ShopSage. Analiz edilen bu ürün hakkında bana istediğini sorabilirsin. Sana nasıl yardımcı olabilirim?" }
+    { role: 'assistant', content: "Merhaba! 👋 Ben ShopSage AI, kişisel alışveriş asistanınızım. Ürünler hakkında fiyat karşılaştırması, teknik detaylar ve alım tavsiyeleri konusunda size yardımcı olabilirim. Nasıl yardımcı olabilirim?" }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -21,6 +22,16 @@ const ChatWidget = ({ contextData }) => {
     }
   }, [messages, isOpen]);
 
+  // When product context changes, send an informational message
+  useEffect(() => {
+    if (contextProduct) {
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `📦 "${contextProduct.name}" ürünü hakkında bilgi almak ister misiniz? Fiyat karşılaştırması, teknik özellikler veya alım tavsiyesi sorun!` }
+      ]);
+    }
+  }, [contextProduct?.id]);
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -30,45 +41,34 @@ const ChatWidget = ({ contextData }) => {
     setIsLoading(true);
 
     try {
-      const payload = {
+      const { reply } = await chatWithAssistant({
         history: messages,
-        user_message: userMessage,
-        context_data: contextData ? {
-          product_name: contextData.analyst_result?.product_name,
-          strategy: contextData.analyst_result?.strategy,
-          ai_summary: contextData.analyst_result?.ai_summary,
-          price_trend: contextData.analyst_result?.price_trend,
-          review_insight: contextData.analyst_result?.review_insight,
-          detective_prices: contextData.detective_result?.found_prices
-        } : null
-      };
-
-      const response = await fetch('http://localhost:8000/api/v1/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        userMessage,
+        contextData: contextProduct,
       });
-
-      if (!response.ok) {
-        throw new Error('API Error');
-      }
-
-      const data = await response.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (err) {
-      console.error(err);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Üzgünüm, şu anda sunucuya bağlanamıyorum. Lütfen daha sonra tekrar dene." }]);
+      console.error('Backend chat error:', err);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: `Üzgünüm, bir hata oluştu: ${err.message}. Lütfen tekrar deneyin.` 
+      }]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleClearChat = () => {
+    setMessages([
+      { role: 'assistant', content: "Sohbet temizlendi! 🧹 Size nasıl yardımcı olabilirim?" }
+    ]);
   };
 
   return (
@@ -79,75 +79,100 @@ const ChatWidget = ({ contextData }) => {
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            className="mb-4 w-96 glass-card overflow-hidden flex flex-col h-[500px]"
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="mb-4 w-[400px] rounded-2xl overflow-hidden flex flex-col h-[520px] shadow-2xl shadow-primary/20 border border-slate-200 bg-white"
           >
             {/* Header */}
-            <div className="p-4 bg-primary flex items-center justify-between shadow-lg text-white">
+            <div className="p-4 bg-gradient-to-r from-primary to-emerald-600 flex items-center justify-between text-white">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Bot className="w-5 h-5 text-white" />
+                <div className="p-2 bg-white/20 backdrop-blur rounded-xl">
+                  <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold">ShopSage Assistant</h3>
-                  <div className="flex items-center gap-1">
+                  <h3 className="text-sm font-black tracking-tight">ShopSage AI</h3>
+                  <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse" />
-                    <span className="text-[10px] text-white/80">Online & Ready</span>
+                    <span className="text-[10px] text-white/80 font-medium">Powered by Gemini</span>
                   </div>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={handleClearChat} 
+                  className="p-2 hover:bg-white/10 rounded-lg transition-all text-white/70 hover:text-white text-xs font-bold"
+                  title="Sohbeti Temizle"
+                >
+                  Temizle
+                </button>
+                <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Chat Content */}
-            <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-slate-50">
+            <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-slate-50/50">
               {messages.map((msg, idx) => (
-                <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                <motion.div 
+                  key={idx} 
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
                     msg.role === 'user' ? 'bg-slate-200 text-slate-600' : 'bg-primary/10 text-primary border border-primary/20'
                   }`}>
-                    {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+                    {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
-                  <div className={`p-3 text-sm shadow-sm border ${
+                  <div className={`max-w-[280px] p-3 text-[13px] leading-relaxed shadow-sm border ${
                     msg.role === 'user' 
-                      ? 'bg-primary text-white rounded-2xl rounded-tr-none border-primary/50' 
-                      : 'bg-white text-slate-700 rounded-2xl rounded-tl-none border-slate-100'
+                      ? 'bg-primary text-white rounded-2xl rounded-tr-sm border-primary/50' 
+                      : 'bg-white text-slate-700 rounded-2xl rounded-tl-sm border-slate-100'
                   }`}>
                     {msg.content}
                   </div>
-                </div>
+                </motion.div>
               ))}
               {isLoading && (
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0 border border-primary/20">
-                    <Bot className="w-5 h-5" />
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex gap-3"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0 border border-primary/20">
+                    <Bot className="w-4 h-4" />
                   </div>
-                  <div className="bg-white p-3 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm border border-slate-100 flex items-center gap-2">
+                  <div className="bg-white p-3 rounded-2xl rounded-tl-sm text-[13px] text-slate-500 shadow-sm border border-slate-100 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
                     Düşünüyor...
                   </div>
-                </div>
+                </motion.div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
-            <div className="p-4 bg-white border-t border-slate-100">
-              <div className="relative">
+            <div className="p-3 bg-white border-t border-slate-100">
+              {contextProduct && (
+                <div className="mb-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10 flex items-center gap-2">
+                  <span className="text-[10px] text-primary font-bold truncate">📦 {contextProduct.name}</span>
+                </div>
+              )}
+              <div className="relative flex items-center gap-2">
                 <input 
                   type="text" 
-                  placeholder="Ask a question..." 
+                  placeholder="Ürünler hakkında bir şey sorun..." 
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="input-glass w-full pr-12 text-sm"
+                  className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary/50 transition-colors"
                   disabled={isLoading}
                 />
                 <button 
                   onClick={handleSend}
-                  disabled={isLoading}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary rounded-lg text-white hover:bg-primary-hover transition-all disabled:opacity-50"
+                  disabled={isLoading || !inputValue.trim()}
+                  className="p-2.5 bg-primary rounded-xl text-white hover:bg-primary-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -157,15 +182,40 @@ const ChatWidget = ({ contextData }) => {
         )}
       </AnimatePresence>
 
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-2xl shadow-primary/40 hover:bg-primary-hover transition-all relative group"
-      >
-        <MessageSquare className="w-8 h-8 text-white group-hover:rotate-12 transition-transform" />
-        <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 border-2 border-white rounded-full" />
-      </motion.button>
+      {/* Floating Button with Label */}
+      <div className="flex flex-col items-end gap-2">
+        <AnimatePresence>
+          {!isOpen && (
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              className="bg-slate-900 text-white px-4 py-2 rounded-xl shadow-lg text-xs font-bold whitespace-nowrap"
+            >
+              ✨ Your Smart Shopping Assistant
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsOpen(!isOpen)}
+          className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all relative group ${
+            isOpen 
+              ? 'bg-slate-200 text-slate-600 shadow-slate-200/40' 
+              : 'bg-gradient-to-br from-primary to-emerald-600 text-white shadow-primary/40'
+          }`}
+        >
+          {isOpen ? (
+            <X className="w-6 h-6" />
+          ) : (
+            <>
+              <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+              <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 border-2 border-white rounded-full animate-pulse" />
+            </>
+          )}
+        </motion.button>
+      </div>
     </div>
   );
 };

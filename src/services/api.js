@@ -28,6 +28,58 @@ async function apiFetch(path, options = {}) {
   return response.json();
 }
 
+function buildVisionPayload(imageInput, locale = 'tr') {
+  if (typeof imageInput !== 'string' || !imageInput.trim()) {
+    throw new Error('Geçerli bir görsel girdisi gerekli.');
+  }
+
+  const trimmed = imageInput.trim();
+
+  if (trimmed.startsWith('data:')) {
+    const [, base64] = trimmed.split(',', 2);
+    if (!base64) {
+      throw new Error('Base64 görsel verisi çözümlenemedi.');
+    }
+    return {
+      input_type: 'base64',
+      image_data: base64,
+      locale,
+    };
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return {
+      input_type: 'url',
+      image_url: trimmed,
+      locale,
+    };
+  }
+
+  throw new Error('Görsel girdisi data URL veya http(s) URL olmalıdır.');
+}
+
+
+// ── BFF AI Endpoints ───────────────────────────────────────────
+
+export async function chatWithAssistant({ history = [], userMessage, contextData = null }) {
+  return apiFetch('/chat', {
+    method: 'POST',
+    body: JSON.stringify({
+      history,
+      user_message: userMessage,
+      context_data: contextData,
+    }),
+  });
+}
+
+export async function analyzeImage(imageInput, locale = 'tr') {
+  const payload = buildVisionPayload(imageInput, locale);
+  return apiFetch('/vision/analyze-image', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 
 // ── Pipeline (Orchestration) ───────────────────────────────────
 

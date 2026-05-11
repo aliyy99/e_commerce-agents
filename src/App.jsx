@@ -1,113 +1,108 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import ProductAnalysis from './components/ProductAnalysis';
 import Profile from './components/Profile';
-import AgentTerminal from './components/AgentTerminal';
 import PipelineLoader from './components/PipelineLoader';
+import ProductCard from './components/ProductCard';
 import ChatWidget from './components/ChatWidget';
-import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, Zap, TrendingUp } from 'lucide-react';
+import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { runPipeline, subscribeToPipeline, generateSessionId } from './services/api';
+import { sampleProducts } from './data/products';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  // Pipeline state
+  // Search and App State
   const [searchQuery, setSearchQuery] = useState('');
   const [isRunning, setIsRunning] = useState(false);
-  const [pipelineLogs, setPipelineLogs] = useState([]);
-  const [pipelineResult, setPipelineResult] = useState(null);
-  const [currentAgent, setCurrentAgent] = useState('');
-  const [lastMessage, setLastMessage] = useState('');
-
-  // Image upload state
   const [uploadedImage, setUploadedImage] = useState(null);
+  
+  // Navigation State
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // User Data State
+  const [favorites, setFavorites] = useState([]);
+  const [tracked, setTracked] = useState([]);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
-      setUploadedImage(event.target.result); // Base64 string
+      setUploadedImage(event.target.result);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim() && !uploadedImage) return;
+  const handleSearch = useCallback(() => {
+    if (!searchQuery.trim() && !uploadedImage) {
+      setIsSearching(false);
+      return;
+    }
 
     setIsRunning(true);
-    setPipelineLogs([]);
-    setPipelineResult(null);
-    setCurrentAgent('');
-    setLastMessage('Pipeline başlatılıyor...');
-
-    const sessionId = generateSessionId();
-
-    // 1. Subscribe to SSE stream FIRST
-    const eventSource = subscribeToPipeline(sessionId, {
-      onLog: (data) => {
-        setPipelineLogs(prev => [...prev, data]);
-        setCurrentAgent(data.agent);
-        setLastMessage(data.message);
-      },
-      onDone: () => {
-        setIsRunning(false);
-        setCurrentAgent('');
-      },
-      onError: (err) => {
-        console.error('SSE error:', err);
-        setPipelineLogs(prev => [...prev, { agent: 'System', message: `Connection error: ${err}`, ts: Date.now() / 1000 }]);
-      },
-    });
-
-    // 2. Trigger the pipeline
-    try {
-      const payload = {
-        query: searchQuery || 'Product analysis',
-        session_id: sessionId,
-        save_to_db: true,
-      };
-
-      // If image is uploaded, add vision payload
-      if (uploadedImage) {
-        payload.vision = {
-          input_type: 'base64',
-          image_data: uploadedImage.split(',')[1], // Remove data:image/...;base64, prefix
-        };
-      }
-
-      const result = await runPipeline(payload);
-      setPipelineResult(result);
-    } catch (err) {
-      console.error('Pipeline error:', err);
-      setPipelineLogs(prev => [...prev, { agent: 'System', message: `Error: ${err.message}`, ts: Date.now() / 1000 }]);
-    } finally {
+    setSelectedProduct(null);
+    setIsSearching(true);
+    
+    // Simulate search delay
+    setTimeout(() => {
       setIsRunning(false);
-      setCurrentAgent('');
-      eventSource.close();
-    }
+    }, 1500);
   }, [searchQuery, uploadedImage]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSearch();
   };
 
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setIsSearching(false);
+    setUploadedImage(null);
+  };
+
+  const toggleFavorite = (product) => {
+    setFavorites(prev => {
+      if (prev.find(p => p.id === product.id)) {
+        return prev.filter(p => p.id !== product.id);
+      }
+      return [...prev, product];
+    });
+  };
+
+  const toggleTracked = (product) => {
+    setTracked(prev => {
+      if (prev.find(p => p.id === product.id)) {
+        return prev.filter(p => p.id !== product.id);
+      }
+      return [...prev, product];
+    });
+  };
+
+  const displayedProducts = useMemo(() => {
+    if (isSearching && searchQuery) {
+      return sampleProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    return sampleProducts;
+  }, [isSearching, searchQuery]);
+
   return (
     <div className="min-h-screen bg-background text-slate-900 font-sans selection:bg-primary/20">
-      <Sidebar activePage={currentPage} onNavigate={setCurrentPage} />
+      <Sidebar activePage={currentPage} onNavigate={(page) => {
+        setCurrentPage(page);
+        if (page === 'dashboard') setSelectedProduct(null);
+      }} />
       
       <main className="pl-72 relative z-10 transition-all duration-300">
-        {/* Web App Header */}
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6 flex-1">
-            <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize">
-              {currentPage === 'dashboard' && 'Market Intelligence'}
+            <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize whitespace-nowrap min-w-[160px]">
+              {currentPage === 'dashboard' && (selectedProduct ? 'Ürün Detayları' : 'Keşfet')}
               {currentPage === 'market' && 'Global Trends'}
-              {currentPage === 'tracked' && 'Monitoring Station'}
-              {currentPage === 'favorites' && 'Curated Favorites'}
-              {currentPage === 'profile' && 'Account Settings'}
+              {currentPage === 'tracked' && 'Takip Edilenler'}
+              {currentPage === 'favorites' && 'Favoriler'}
+              {currentPage === 'profile' && 'Profil'}
             </h2>
             <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group">
               <Search className="w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
@@ -116,9 +111,14 @@ function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Paste a product link or search intelligence..." 
+                placeholder="Ürün adı arayın veya link yapıştırın..." 
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-900 placeholder:text-slate-400"
               />
+              {isSearching && (
+                <button onClick={handleClearSearch} className="text-slate-400 hover:text-slate-600 px-2 text-xs font-bold">
+                  TEMİZLE
+                </button>
+              )}
               <label className="cursor-pointer p-1.5 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-primary">
                 <Camera className="w-4 h-4" />
                 <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -132,7 +132,7 @@ function App() {
                     : 'bg-primary text-white hover:bg-primary-hover shadow-sm'
                 }`}
               >
-                {isRunning ? 'Analyzing...' : 'Analyze'}
+                {isRunning ? 'Aranıyor...' : 'Ara'}
               </button>
             </div>
           </div>
@@ -151,7 +151,7 @@ function App() {
             )}
             <button className="relative p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100">
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white" />
+              {tracked.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white" />}
             </button>
             <button className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100">
               <Settings className="w-5 h-5" />
@@ -210,81 +210,70 @@ function App() {
 
         <div className="px-10 py-8 max-w-[1600px] mx-auto overflow-hidden">
           <AnimatePresence mode="wait">
-            {currentPage === 'dashboard' && (
+            {currentPage === 'dashboard' && !selectedProduct && (
               <motion.div 
-                key="dashboard"
+                key="dashboard-discover"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="space-y-10"
+                className="space-y-8"
               >
-                {/* Active Intelligence Feed - Top Priority */}
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                  <div className="xl:col-span-8">
-                    {isRunning ? (
-                      <PipelineLoader currentAgent={currentAgent} message={lastMessage} />
-                    ) : (
-                      <ProductAnalysis loading={false} data={pipelineResult} />
-                    )}
-                  </div>
-                  <div className="xl:col-span-4 flex flex-col gap-6">
-                    <div className="glass-card p-6 border-slate-100 bg-white">
-                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Live Intelligence Stream</h3>
-                      <div className="space-y-6">
-                        {[1, 2, 3].map(i => (
-                          <div key={i} className="flex items-start gap-4 pb-6 border-b border-slate-50 last:border-0 last:pb-0">
-                            <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
-                              <Zap className="w-4 h-4 text-primary" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-900 leading-tight">MacBook Pro price dropped!</p>
-                              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">System detected a 5% drop on Amazon. Strategy: <span className="text-primary font-bold">BUY</span></p>
-                              <span className="text-[9px] text-slate-400 font-bold mt-2 block">2m ago</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {isSearching && (
+                  <h3 className="text-xl font-black text-slate-900 mb-4">
+                    "{searchQuery}" için sonuçlar ({displayedProducts.length})
+                  </h3>
+                )}
+                {!isSearching && (
+                  <h3 className="text-2xl font-black text-slate-900 mb-6">Öne Çıkan Ürünler</h3>
+                )}
 
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-10">
-                  <div className="xl:col-span-2 glass-card p-8 border-slate-100 bg-white">
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-xl font-display font-black text-slate-900">Interest Analysis</h3>
-                      <button className="text-xs text-primary font-black uppercase tracking-widest hover:underline">Deep Dive</button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      {['Electronics', 'Fashion', 'Home Intelligence'].map(cat => (
-                        <div key={cat} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer group">
-                          <p className="text-[10px] font-black text-slate-400 uppercase mb-1">{cat}</p>
-                          <p className="text-lg font-black text-slate-900 group-hover:text-primary transition-colors">94% Fit</p>
-                        </div>
-                      ))}
-                    </div>
+                {isRunning ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {[1,2,3,4].map(i => <div key={i} className="h-80 skeleton rounded-2xl" />)}
                   </div>
+                ) : displayedProducts.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {displayedProducts.map(product => (
+                      <ProductCard 
+                        key={product.id} 
+                        product={product} 
+                        onClick={setSelectedProduct}
+                        onFavorite={toggleFavorite}
+                        onTrack={toggleTracked}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="glass-card p-12 text-center bg-white border-slate-100">
+                    <p className="text-slate-500">Aramanızla eşleşen ürün bulunamadı.</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
 
-                  <div className="glass-card p-8 flex flex-col border-slate-100 bg-white">
-                    <h3 className="text-xl font-display font-black mb-8 text-slate-900">Agent Network</h3>
-                    <div className="space-y-6 flex-1">
-                      <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 group hover:bg-primary/10 transition-all cursor-pointer">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-xs font-black text-slate-700 uppercase tracking-widest">Vision Node A-1</span>
-                          <span className="px-2 py-0.5 rounded-md bg-primary text-white text-[10px] font-black uppercase">ACTIVE</span>
-                        </div>
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: '85%' }}
-                            className="bg-primary h-full shadow-[0_0_10px_rgba(5,150,105,0.3)]" 
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-3 font-bold uppercase tracking-tighter">Processing: Multimodal Query #4492</p>
-                      </div>
-                    </div>
-                    <button className="btn-primary w-full mt-8 py-4 text-xs tracking-widest uppercase">UPGRADE AGENT MESH</button>
-                  </div>
-                </div>
+            {currentPage === 'dashboard' && selectedProduct && (
+              <motion.div
+                key="dashboard-details"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <button 
+                  onClick={() => setSelectedProduct(null)}
+                  className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-primary transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Geri Dön
+                </button>
+                <ProductAnalysis 
+                  loading={false} 
+                  product={selectedProduct} 
+                  onFavorite={() => toggleFavorite(selectedProduct)}
+                  onTrack={() => toggleTracked(selectedProduct)}
+                  isFavorite={favorites.some(f => f.id === selectedProduct.id)}
+                  isTracked={tracked.some(t => t.id === selectedProduct.id)}
+                />
               </motion.div>
             )}
 
@@ -308,16 +297,47 @@ function App() {
 
             {currentPage === 'tracked' && (
               <motion.div key="tracked" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <h2 className="text-3xl font-display font-black text-slate-900">Tracked Products</h2>
-                <div className="glass-card p-12 text-center bg-white border-slate-100">
-                  <p className="text-slate-500">You are currently monitoring <span className="text-slate-900 font-bold">12 products</span> across 4 marketplaces.</p>
-                </div>
+                <h2 className="text-3xl font-display font-black text-slate-900">Takip Edilen Ürünler</h2>
+                {tracked.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {tracked.map(product => (
+                      <ProductCard 
+                        key={product.id} 
+                        product={product} 
+                        onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
+                        onFavorite={toggleFavorite}
+                        onTrack={toggleTracked}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="glass-card p-12 text-center bg-white border-slate-100">
+                    <p className="text-slate-500">Henüz takip ettiğiniz bir ürün bulunmuyor.</p>
+                  </div>
+                )}
               </motion.div>
             )}
 
             {currentPage === 'favorites' && (
-              <motion.div key="favorites" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                <Profile forceTab="favorites" />
+              <motion.div key="favorites" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                <h2 className="text-3xl font-display font-black text-slate-900">Favoriler</h2>
+                {favorites.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {favorites.map(product => (
+                      <ProductCard 
+                        key={product.id} 
+                        product={product} 
+                        onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
+                        onFavorite={toggleFavorite}
+                        onTrack={toggleTracked}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="glass-card p-12 text-center bg-white border-slate-100">
+                    <p className="text-slate-500">Henüz favorilere eklediğiniz bir ürün bulunmuyor.</p>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -330,13 +350,8 @@ function App() {
         </div>
       </main>
 
-      {/* Agentic Logs Terminal — always visible at bottom-right */}
-      <ChatWidget contextData={pipelineResult} />
-      <AgentTerminal 
-        logs={pipelineLogs} 
-        isRunning={isRunning}
-        onClear={() => setPipelineLogs([])}
-      />
+      {/* Gemini-Powered Shopping Assistant */}
+      <ChatWidget contextProduct={selectedProduct} />
     </div>
   );
 }

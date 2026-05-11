@@ -28,6 +28,13 @@ class Settings:
 
 settings = Settings()
 
+
+def get_gemini_api_key() -> str:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("Eksik ortam değişkeni: GEMINI_API_KEY. Lütfen backend/.env dosyasını doldurun.")
+    return api_key
+
 # Güvenlik Kontrolü: Gerekli anahtarlar eksikse hata ver
 if not settings.GEMINI_API_KEY:
     raise ValueError("Eksik ortam değişkeni: GEMINI_API_KEY. Lütfen backend/.env dosyasını doldurun.")
@@ -35,7 +42,4 @@ if not settings.SUPABASE_URL:
     raise ValueError("Eksik ortam değişkeni: SUPABASE_URL. Lütfen backend/.env dosyasını doldurun.")
 if not settings.SUPABASE_KEY:
     raise ValueError("Eksik ortam değişkeni: SUPABASE_KEY. Lütfen backend/.env dosyasını doldurun.")
-
-# Geriye dönük uyumluluk (diğer modüllerin çalışması için)
-settings.GOOGLE_API_KEY = settings.GEMINI_API_KEY
 settings.SUPABASE_SERVICE_KEY = settings.SUPABASE_KEY

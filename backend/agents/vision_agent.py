@@ -22,11 +22,12 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from ..config import settings
 from ..models.requests import VisionRequest, ImageInputType
 from ..models.responses import VisionResponse, AgentStatus, DetectedSpec
+from ..services.gemini_client import configure_gemini_client
 
 logger = logging.getLogger("shopsage.vision_agent")
 
 # ── Configure the Google AI SDK once at import time ───────────
-genai.configure(api_key=settings.GOOGLE_API_KEY)
+configure_gemini_client()
 
 # ─────────────────────────────────────────────────────────────
 # Prompt template

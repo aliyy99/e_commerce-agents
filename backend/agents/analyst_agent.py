@@ -26,9 +26,10 @@ from ..models.responses import (
     AnalystResponse, AgentStatus,
     BuyStrategy, ReviewInsight, PriceTrend,
 )
+from ..services.gemini_client import configure_gemini_client
 
 logger = logging.getLogger("shopsage.analyst_agent")
-genai.configure(api_key=settings.GOOGLE_API_KEY)
+configure_gemini_client()
 
 
 # ─────────────────────────────────────────────────────────────

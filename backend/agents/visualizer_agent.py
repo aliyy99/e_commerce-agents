@@ -24,9 +24,10 @@ from ..config import settings
 from ..db import save_generated_image
 from ..models.requests import StyleRequest, ProductCategory
 from ..models.responses import StyleResponse, AgentStatus
+from ..services.gemini_client import configure_gemini_client
 
 logger = logging.getLogger("shopsage.visualizer_agent")
-genai.configure(api_key=settings.GOOGLE_API_KEY)
+configure_gemini_client()
 
 # ─────────────────────────────────────────────────────────────
 # Prompt templates per category
