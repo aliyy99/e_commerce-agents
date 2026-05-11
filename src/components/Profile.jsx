@@ -50,7 +50,7 @@ const Profile = ({ forceTab }) => {
       )}
 
       {/* Content Area */}
-      <div className="flex-1">
+      <div className="flex-1 max-w-4xl">
         {activeTab === 'favorites' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-display font-black text-slate-900">Favorilerim</h2>
@@ -87,27 +87,139 @@ const Profile = ({ forceTab }) => {
         )}
 
         {activeTab === 'profile' && (
-          <div className="glass-card p-8 space-y-8 bg-white border-slate-100">
-            <div className="flex items-center gap-6">
-              <div className="w-24 h-24 rounded-full bg-primary/10 border-4 border-white flex items-center justify-center text-primary shadow-sm">
-                <User className="w-12 h-12" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-display font-black text-slate-900">Alex Rivera</h2>
-                <p className="text-slate-500">Pro Analyst Account</p>
+          <div className="space-y-6">
+            <h2 className="text-2xl font-display font-black text-slate-900 mb-6">Profil & Ayarlar</h2>
+            
+            <div className="glass-card p-8 bg-white border-slate-100 mb-8">
+              <div className="flex items-center gap-6">
+                <div className="relative">
+                  <div className="w-24 h-24 rounded-full bg-primary/10 border-4 border-white flex items-center justify-center text-primary shadow-sm">
+                    <User className="w-12 h-12" />
+                  </div>
+                  <button className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-primary hover:border-primary transition-colors">
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-2xl font-display font-black text-slate-900">Alex Rivera</h2>
+                  <p className="text-sm font-bold text-primary mb-2">Pro Analyst Account</p>
+                  <p className="text-xs text-slate-500">Son giriş: Bugün 14:23</p>
+                </div>
+                <button className="btn-primary py-3 px-6 text-sm uppercase tracking-widest">
+                  Profili Düzenle
+                </button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-100">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">E-posta</p>
-                <p className="text-sm font-bold text-slate-900">alex.rivera@example.com</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Hesap Bilgileri */}
+              <div className="glass-card p-6 bg-white border-slate-100">
+                <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <User className="w-5 h-5 text-slate-400" />
+                  Hesap Bilgileri
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ad Soyad</label>
+                    <input type="text" defaultValue="Alex Rivera" className="w-full mt-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-primary focus:bg-white transition-colors" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">E-posta</label>
+                    <input type="email" defaultValue="alex.rivera@example.com" className="w-full mt-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-primary focus:bg-white transition-colors" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Şifre</label>
+                    <button className="w-full mt-1 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 font-bold hover:bg-slate-50 transition-colors text-left">
+                      Şifreyi Değiştir...
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Üyelik Tarihi</p>
-                <p className="text-sm font-bold text-slate-900">Ekim 2025</p>
+
+              {/* Tercihler */}
+              <div className="glass-card p-6 bg-white border-slate-100">
+                <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-slate-400" />
+                  Uygulama Tercihleri
+                </h3>
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Tema</p>
+                      <p className="text-xs text-slate-500">Sistem temasına uy</p>
+                    </div>
+                    <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none">
+                      <option>Sistem</option>
+                      <option>Açık</option>
+                      <option>Koyu</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Para Birimi</p>
+                      <p className="text-xs text-slate-500">Varsayılan fiyat gösterimi</p>
+                    </div>
+                    <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none">
+                      <option>TRY (₺)</option>
+                      <option>USD ($)</option>
+                      <option>EUR (€)</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">AI Asistan Dili</p>
+                      <p className="text-xs text-slate-500">Gemini yanıt dili</p>
+                    </div>
+                    <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none">
+                      <option>Türkçe</option>
+                      <option>English</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bildirimler */}
+              <div className="glass-card p-6 bg-white border-slate-100 md:col-span-2">
+                <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-slate-400" />
+                  Bildirim Ayarları
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="checkbox" defaultChecked className="w-5 h-5 accent-primary rounded" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Fiyat Düşüşleri</p>
+                      <p className="text-xs text-slate-500">Takip edilen ürünler düştüğünde</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="checkbox" defaultChecked className="w-5 h-5 accent-primary rounded" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Stok Uyarıları</p>
+                      <p className="text-xs text-slate-500">Tükenen ürünler stoğa girdiğinde</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="checkbox" className="w-5 h-5 accent-primary rounded" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Piyasa Trendleri</p>
+                      <p className="text-xs text-slate-500">Haftalık indirim bültenleri</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="checkbox" defaultChecked className="w-5 h-5 accent-primary rounded" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Sistem Bildirimleri</p>
+                      <p className="text-xs text-slate-500">Güvenlik ve hesap güncellemeleri</p>
+                    </div>
+                  </label>
+                </div>
               </div>
             </div>
-            <button className="btn-primary w-full py-4 text-sm mt-4 uppercase tracking-widest">Ayarları Güncelle</button>
+            
+            <div className="flex justify-end pt-4">
+              <button className="btn-primary py-3 px-8 text-sm uppercase tracking-widest shadow-lg shadow-primary/20">Değişiklikleri Kaydet</button>
+            </div>
           </div>
         )}
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, ShieldCheck, AlertCircle, TrendingDown, ArrowUpRight, Check, X, Info, Star, Heart, Bell } from 'lucide-react';
+import { ExternalLink, ShieldCheck, AlertCircle, TrendingDown, ArrowUpRight, Check, X, Info, Star, Heart, Bell, Zap } from 'lucide-react';
 
 const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, isTracked }) => {
   if (loading || !product) {
@@ -85,95 +85,49 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
           <h3 className="text-2xl font-display font-black text-slate-900">{productName}</h3>
           <p className="text-sm text-slate-500 mt-2">{product.description}</p>
         </div>
+
+        {/* Technical Specs Section */}
+        {product.specs && (
+          <div className="mt-4 space-y-4">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Teknik Detaylar</h4>
+            <div className="grid grid-cols-1 gap-3">
+              {product.specs.map(spec => (
+                <div key={spec.label} className="flex justify-between items-center py-1">
+                  <span className="text-[10px] font-bold text-slate-500">{spec.label}</span>
+                  <span className="text-[10px] font-black text-slate-900 text-right ml-4">{spec.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </motion.div>
 
-      {/* Bento 2: Strategic Advice & Stores Analysis */}
+      {/* Bento 2: Placeholder for Strategic Advice & Stores Analysis */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="lg:col-span-8 flex flex-col gap-6"
+        className="lg:col-span-8 flex flex-col gap-6 items-center justify-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 relative min-h-[400px]"
       >
-        <div className={`glass-card p-8 bg-gradient-to-br from-primary/5 to-transparent border-primary/20 flex flex-col justify-between bg-white ${isPulsing ? 'animate-pulse' : 'glow-advice'}`}>
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <span className={`px-4 py-1.5 ${strategyColor} text-white font-black rounded-lg text-xs uppercase tracking-tighter`}>
-                {strategyText}
-              </span>
-              <div className="flex -space-x-2">
-                {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-slate-200" />)}
-              </div>
-            </div>
-            <h2 className="text-2xl font-display font-black mb-4 text-slate-900">AI Öngörüsü</h2>
-            <p className="text-slate-500 text-sm leading-relaxed">
-              {aiSummary}
-            </p>
+        <div className="text-center p-8">
+          <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Zap className="w-8 h-8" />
           </div>
-          <div className="mt-8 pt-6 border-t border-slate-100 flex items-end justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">En İyi Fiyat</p>
-              <p className="text-3xl font-black text-slate-900">${recommendedPrice.toLocaleString()}</p>
-            </div>
-          </div>
+          <h3 className="text-xl font-display font-black text-slate-900 mb-2">Detaylı Analiz</h3>
+          <p className="text-slate-500 text-sm max-w-sm mx-auto">
+            Ürüne ait fiyat geçmişi, satıcı güvenilirlik puanları ve müşteri yorumlarının yapay zeka destekli detaylı analizi.
+          </p>
         </div>
 
-        {/* E-Commerce Stores Analysis */}
-        <div className="glass-card p-6 bg-white border-slate-100 flex-1">
-          <h3 className="font-display font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <TrendingDown className="w-4 h-4 text-primary" />
-            Market Analizi ve Yorumlar
-          </h3>
-          <div className="grid grid-cols-1 gap-4">
-            {stores.map((store, i) => (
-              <div key={store.name} className="flex flex-col p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-primary/20 transition-all">
-                <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
-                  <div>
-                    <p className="text-lg font-black text-slate-900">{store.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex">{renderStars(store.rating, store.maxRating)}</div>
-                      <span className="text-xs text-slate-500 font-bold">{store.rating} / {store.maxRating}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-slate-900">${store.price.toLocaleString()}</p>
-                    {store.price === recommendedPrice && (
-                      <span className="px-2 py-1 bg-primary/10 text-primary rounded text-[10px] font-bold uppercase">En İyi Fiyat</span>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                      <Check className="w-3 h-3" />
-                      Müşteri Artıları
-                    </h4>
-                    <ul className="space-y-2">
-                      {store.pros.map(pro => (
-                        <li key={pro} className="text-xs text-slate-600 flex items-start gap-2">
-                          <div className="mt-1 w-1 h-1 rounded-full bg-emerald-500 shrink-0" />
-                          {pro}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="text-[10px] font-black text-accent-rose uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                      <X className="w-3 h-3" />
-                      Müşteri Eksileri
-                    </h4>
-                    <ul className="space-y-2">
-                      {store.cons.map(con => (
-                        <li key={con} className="text-xs text-slate-600 flex items-start gap-2">
-                          <div className="mt-1 w-1 h-1 rounded-full bg-accent-rose shrink-0" />
-                          {con}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Analyze Button (Top Right) */}
+        <div className="absolute top-6 right-6">
+          <button 
+            disabled
+            className="flex items-center gap-2 px-6 py-3 bg-primary/50 text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 cursor-not-allowed transition-all"
+            title="Şu an aktif değil"
+          >
+            <Zap className="w-4 h-4" />
+            Analyze
+          </button>
         </div>
       </motion.div>
     </div>

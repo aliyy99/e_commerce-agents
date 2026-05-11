@@ -5,6 +5,7 @@ import Profile from './components/Profile';
 import PipelineLoader from './components/PipelineLoader';
 import ProductCard from './components/ProductCard';
 import ChatWidget from './components/ChatWidget';
+import Campaigns from './components/Campaigns';
 import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { sampleProducts } from './data/products';
@@ -21,6 +22,7 @@ function App() {
   // Navigation State
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // User Data State
   const [favorites, setFavorites] = useState([]);
@@ -44,7 +46,9 @@ function App() {
 
     setIsRunning(true);
     setSelectedProduct(null);
+    setCurrentPage('dashboard');
     setIsSearching(true);
+    setShowSuggestions(false);
     
     // Simulate search delay
     setTimeout(() => {
@@ -80,6 +84,68 @@ function App() {
     });
   };
 
+  // Extended product suggestions database (keyword -> related models/products)
+  const suggestionDatabase = [
+    // Samsung family
+    'Samsung Galaxy S24 Ultra',
+    'Samsung Galaxy S24+',
+    'Samsung Galaxy S23 FE',
+    'Samsung Galaxy Z Fold 5',
+    'Samsung Galaxy Z Flip 5',
+    'Samsung Galaxy Tab S9',
+    'Samsung Galaxy Buds2 Pro',
+    // Apple / MacBook family
+    'MacBook Pro 14" M3',
+    'MacBook Pro 16" M3 Max',
+    'MacBook Air 15" M3',
+    'MacBook Air 13" M4',
+    // Apple iPhone
+    'iPhone 15 Pro Max',
+    'iPhone 15 Pro',
+    'iPhone 15',
+    'iPhone 14',
+    // Apple Watch
+    'Apple Watch Series 9',
+    'Apple Watch Ultra 2',
+    'Apple Watch SE',
+    // Sony
+    'Sony WH-1000XM5',
+    'Sony WH-1000XM4',
+    'Sony WF-1000XM5',
+    'Sony PlayStation 5',
+    'Sony PlayStation 5 Slim',
+    'Sony PlayStation Portal',
+    // Dyson
+    'Dyson V15 Detect',
+    'Dyson V12 Detect Slim',
+    'Dyson Airwrap',
+    'Dyson Supersonic',
+    'Dyson Purifier Cool',
+    // PlayStation
+    'PlayStation 5',
+    'PlayStation 5 Slim',
+    'PlayStation VR2',
+    'PlayStation Portal',
+    'PlayStation DualSense Edge',
+    // Other popular
+    'AirPods Pro 2',
+    'AirPods Max',
+    'iPad Pro M4',
+    'iPad Air M2',
+    'Nintendo Switch OLED',
+    'Xbox Series X',
+    'LG OLED C4 TV',
+    'Bose QuietComfort Ultra',
+  ];
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 2) return [];
+    const q = searchQuery.toLowerCase();
+    return suggestionDatabase
+      .filter(s => s.toLowerCase().includes(q) && s.toLowerCase() !== q)
+      .slice(0, 7);
+  }, [searchQuery]);
+
   const displayedProducts = useMemo(() => {
     if (isSearching && searchQuery) {
       return sampleProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -99,17 +165,23 @@ function App() {
           <div className="flex items-center gap-6 flex-1">
             <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize whitespace-nowrap min-w-[160px]">
               {currentPage === 'dashboard' && (selectedProduct ? 'Ürün Detayları' : 'Keşfet')}
+              {currentPage === 'campaigns' && 'Kampanyalar'}
               {currentPage === 'market' && 'Global Trends'}
               {currentPage === 'tracked' && 'Takip Edilenler'}
               {currentPage === 'favorites' && 'Favoriler'}
               {currentPage === 'profile' && 'Profil'}
             </h2>
-            <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group">
+            <div className="relative flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group z-50">
               <Search className="w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
               <input 
                 type="text" 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSuggestions(e.target.value.length > 0);
+                }}
+                onFocus={() => setShowSuggestions(searchQuery.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ürün adı arayın veya link yapıştırın..." 
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-900 placeholder:text-slate-400"
@@ -134,6 +206,44 @@ function App() {
               >
                 {isRunning ? 'Aranıyor...' : 'Ara'}
               </button>
+
+              {/* Autocomplete Suggestions Dropdown */}
+              <AnimatePresence>
+                {showSuggestions && searchSuggestions.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 py-2 z-50 overflow-hidden"
+                  >
+                    {searchSuggestions.map((suggestion, idx) => {
+                      const q = searchQuery.toLowerCase();
+                      const matchIndex = suggestion.toLowerCase().indexOf(q);
+                      const before = suggestion.slice(0, matchIndex);
+                      const match = suggestion.slice(matchIndex, matchIndex + searchQuery.length);
+                      const after = suggestion.slice(matchIndex + searchQuery.length);
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setSearchQuery(suggestion);
+                            setShowSuggestions(false);
+                            setIsSearching(true);
+                            setIsRunning(true);
+                            setTimeout(() => setIsRunning(false), 1500);
+                          }}
+                          className="w-full text-left px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-primary transition-colors flex items-center gap-3"
+                        >
+                          <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          <span>
+                            {before}<span className="font-bold text-slate-900">{match}</span>{after}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
@@ -231,21 +341,53 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {[1,2,3,4].map(i => <div key={i} className="h-80 skeleton rounded-2xl" />)}
                   </div>
-                ) : displayedProducts.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {displayedProducts.map(product => (
-                      <ProductCard 
-                        key={product.id} 
-                        product={product} 
-                        onClick={setSelectedProduct}
-                        onFavorite={toggleFavorite}
-                        onTrack={toggleTracked}
-                      />
-                    ))}
-                  </div>
                 ) : (
-                  <div className="glass-card p-12 text-center bg-white border-slate-100">
-                    <p className="text-slate-500">Aramanızla eşleşen ürün bulunamadı.</p>
+                  <div className="space-y-12">
+                    {displayedProducts.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {displayedProducts.map(product => (
+                          <ProductCard 
+                            key={product.id} 
+                            product={product} 
+                            onClick={setSelectedProduct}
+                            onFavorite={toggleFavorite}
+                            onTrack={toggleTracked}
+                            isFavorite={favorites.some(f => f.id === product.id)}
+                            isTracked={tracked.some(t => t.id === product.id)}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="glass-card p-12 text-center bg-white border-slate-100">
+                        <p className="text-slate-500">Aramanızla eşleşen ürün bulunamadı.</p>
+                      </div>
+                    )}
+
+                    {isSearching && (
+                      <div className="space-y-6">
+                        <div className="flex items-center gap-4">
+                          <div className="h-px bg-slate-200 flex-1" />
+                          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Alternatif Seçenekler</h3>
+                          <div className="h-px bg-slate-200 flex-1" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                          {sampleProducts
+                            .filter(p => !displayedProducts.find(dp => dp.id === p.id))
+                            .slice(0, 4)
+                            .map(product => (
+                              <ProductCard 
+                                key={product.id} 
+                                product={product} 
+                                onClick={setSelectedProduct}
+                                onFavorite={toggleFavorite}
+                                onTrack={toggleTracked}
+                                isFavorite={favorites.some(f => f.id === product.id)}
+                                isTracked={tracked.some(t => t.id === product.id)}
+                              />
+                            ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -307,6 +449,8 @@ function App() {
                         onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
                         onFavorite={toggleFavorite}
                         onTrack={toggleTracked}
+                        isFavorite={favorites.some(f => f.id === product.id)}
+                        isTracked={tracked.some(t => t.id === product.id)}
                       />
                     ))}
                   </div>
@@ -330,6 +474,8 @@ function App() {
                         onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
                         onFavorite={toggleFavorite}
                         onTrack={toggleTracked}
+                        isFavorite={favorites.some(f => f.id === product.id)}
+                        isTracked={tracked.some(t => t.id === product.id)}
                       />
                     ))}
                   </div>
@@ -344,6 +490,12 @@ function App() {
             {currentPage === 'profile' && (
               <motion.div key="profile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                 <Profile forceTab="profile" />
+              </motion.div>
+            )}
+
+            {currentPage === 'campaigns' && (
+              <motion.div key="campaigns" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <Campaigns />
               </motion.div>
             )}
           </AnimatePresence>

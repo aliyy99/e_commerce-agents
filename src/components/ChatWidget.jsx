@@ -72,7 +72,7 @@ const ChatWidget = ({ contextProduct }) => {
   };
 
   return (
-    <div className="fixed bottom-8 right-8 z-50">
+    <div className="fixed bottom-8 left-8 z-[60]">
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -183,7 +183,7 @@ const ChatWidget = ({ contextProduct }) => {
       </AnimatePresence>
 
       {/* Floating Button with Label */}
-      <div className="flex flex-col items-end gap-2">
+      <div className="flex flex-col items-start gap-2">
         <AnimatePresence>
           {!isOpen && (
             <motion.div
