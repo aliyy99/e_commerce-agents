@@ -164,12 +164,12 @@ function App() {
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6 flex-1">
             <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize whitespace-nowrap min-w-[160px]">
-              {currentPage === 'dashboard' && (selectedProduct ? 'Ürün Detayları' : 'Keşfet')}
-              {currentPage === 'campaigns' && 'Kampanyalar'}
+              {currentPage === 'dashboard' && (selectedProduct ? 'Product Details' : 'Discover')}
+              {currentPage === 'campaigns' && 'Campaigns'}
               {currentPage === 'market' && 'Global Trends'}
-              {currentPage === 'tracked' && 'Takip Edilenler'}
-              {currentPage === 'favorites' && 'Favoriler'}
-              {currentPage === 'profile' && 'Profil'}
+              {currentPage === 'tracked' && 'Tracked Products'}
+              {currentPage === 'favorites' && 'Favorites'}
+              {currentPage === 'profile' && 'Profile'}
             </h2>
             <div className="relative flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group z-50">
               <Search className="w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
@@ -183,12 +183,12 @@ function App() {
                 onFocus={() => setShowSuggestions(searchQuery.length > 0)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ürün adı arayın veya link yapıştırın..." 
+                placeholder="Search for a product or paste a link..." 
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-900 placeholder:text-slate-400"
               />
               {isSearching && (
                 <button onClick={handleClearSearch} className="text-slate-400 hover:text-slate-600 px-2 text-xs font-bold">
-                  TEMİZLE
+                  CLEAR
                 </button>
               )}
               <label className="cursor-pointer p-1.5 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-primary">
@@ -204,7 +204,7 @@ function App() {
                     : 'bg-primary text-white hover:bg-primary-hover shadow-sm'
                 }`}
               >
-                {isRunning ? 'Aranıyor...' : 'Ara'}
+                {isRunning ? 'Searching...' : 'Search'}
               </button>
 
               {/* Autocomplete Suggestions Dropdown */}
@@ -330,11 +330,11 @@ function App() {
               >
                 {isSearching && (
                   <h3 className="text-xl font-black text-slate-900 mb-4">
-                    "{searchQuery}" için sonuçlar ({displayedProducts.length})
+                    Results for "{searchQuery}" ({displayedProducts.length})
                   </h3>
                 )}
                 {!isSearching && (
-                  <h3 className="text-2xl font-black text-slate-900 mb-6">Öne Çıkan Ürünler</h3>
+                  <h3 className="text-2xl font-black text-slate-900 mb-6">Featured Products</h3>
                 )}
 
                 {isRunning ? (
@@ -359,7 +359,7 @@ function App() {
                       </div>
                     ) : (
                       <div className="glass-card p-12 text-center bg-white border-slate-100">
-                        <p className="text-slate-500">Aramanızla eşleşen ürün bulunamadı.</p>
+                        <p className="text-slate-500">No products found matching your search.</p>
                       </div>
                     )}
 
@@ -367,7 +367,7 @@ function App() {
                       <div className="space-y-6">
                         <div className="flex items-center gap-4">
                           <div className="h-px bg-slate-200 flex-1" />
-                          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Alternatif Seçenekler</h3>
+                          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Alternative Options</h3>
                           <div className="h-px bg-slate-200 flex-1" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -406,7 +406,7 @@ function App() {
                   className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-primary transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Geri Dön
+                  Go Back
                 </button>
                 <ProductAnalysis 
                   loading={false} 
@@ -439,7 +439,7 @@ function App() {
 
             {currentPage === 'tracked' && (
               <motion.div key="tracked" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <h2 className="text-3xl font-display font-black text-slate-900">Takip Edilen Ürünler</h2>
+                <h2 className="text-3xl font-display font-black text-slate-900">Tracked Products</h2>
                 {tracked.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {tracked.map(product => (
@@ -456,7 +456,7 @@ function App() {
                   </div>
                 ) : (
                   <div className="glass-card p-12 text-center bg-white border-slate-100">
-                    <p className="text-slate-500">Henüz takip ettiğiniz bir ürün bulunmuyor.</p>
+                    <p className="text-slate-500">You haven't tracked any products yet.</p>
                   </div>
                 )}
               </motion.div>
@@ -464,7 +464,7 @@ function App() {
 
             {currentPage === 'favorites' && (
               <motion.div key="favorites" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <h2 className="text-3xl font-display font-black text-slate-900">Favoriler</h2>
+                <h2 className="text-3xl font-display font-black text-slate-900">Favorites</h2>
                 {favorites.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {favorites.map(product => (
@@ -481,7 +481,7 @@ function App() {
                   </div>
                 ) : (
                   <div className="glass-card p-12 text-center bg-white border-slate-100">
-                    <p className="text-slate-500">Henüz favorilere eklediğiniz bir ürün bulunmuyor.</p>
+                    <p className="text-slate-500">You haven't added any products to your favorites yet.</p>
                   </div>
                 )}
               </motion.div>

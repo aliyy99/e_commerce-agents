@@ -25,26 +25,26 @@ const Profile = ({ forceTab }) => {
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'profile' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
           >
             <User className="w-5 h-5" />
-            Profil
+            Profile
           </button>
           <button 
             onClick={() => setActiveTab('favorites')}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'favorites' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
           >
             <Heart className="w-5 h-5" />
-            Favorilerim
+            My Favorites
           </button>
           <button 
             onClick={() => setActiveTab('alarms')}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'alarms' ? 'bg-primary text-white font-bold' : 'text-slate-500 hover:bg-slate-100'}`}
           >
             <Bell className="w-5 h-5" />
-            Alarmlarım
+            My Alarms
           </button>
           <div className="h-px bg-slate-100 my-2" />
           <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-accent-rose hover:bg-accent-rose/5 transition-all font-bold">
             <LogOut className="w-5 h-5" />
-            Çıkış Yap
+            Sign Out
           </button>
         </div>
       )}
@@ -53,7 +53,7 @@ const Profile = ({ forceTab }) => {
       <div className="flex-1 max-w-4xl">
         {activeTab === 'favorites' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-display font-black text-slate-900">Favorilerim</h2>
+            <h2 className="text-2xl font-display font-black text-slate-900">My Favorites</h2>
             <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
               {favorites.map((item) => (
                 <motion.div 
@@ -72,10 +72,10 @@ const Profile = ({ forceTab }) => {
                     <h3 className="font-bold text-slate-900 mb-4">{item.name}</h3>
                     <div className="flex gap-2">
                       <button className="flex-1 py-2 bg-slate-50 hover:bg-accent-rose/5 hover:text-accent-rose border border-slate-200 rounded-lg text-xs font-bold text-slate-500 transition-all">
-                        Takibi Bırak
+                        Untrack
                       </button>
                       <button className="flex-1 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2">
-                        Siteye Git
+                        Go to Site
                         <ArrowRight className="w-3 h-3" />
                       </button>
                     </div>
@@ -88,7 +88,7 @@ const Profile = ({ forceTab }) => {
 
         {activeTab === 'profile' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-display font-black text-slate-900 mb-6">Profil & Ayarlar</h2>
+            <h2 className="text-2xl font-display font-black text-slate-900 mb-6">Profile & Settings</h2>
             
             <div className="glass-card p-8 bg-white border-slate-100 mb-8">
               <div className="flex items-center gap-6">
@@ -103,10 +103,10 @@ const Profile = ({ forceTab }) => {
                 <div className="flex-1">
                   <h2 className="text-2xl font-display font-black text-slate-900">Alex Rivera</h2>
                   <p className="text-sm font-bold text-primary mb-2">Pro Analyst Account</p>
-                  <p className="text-xs text-slate-500">Son giriş: Bugün 14:23</p>
+                  <p className="text-xs text-slate-500">Last login: Today 14:23</p>
                 </div>
                 <button className="btn-primary py-3 px-6 text-sm uppercase tracking-widest">
-                  Profili Düzenle
+                  Edit Profile
                 </button>
               </div>
             </div>
@@ -116,21 +116,21 @@ const Profile = ({ forceTab }) => {
               <div className="glass-card p-6 bg-white border-slate-100">
                 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                   <User className="w-5 h-5 text-slate-400" />
-                  Hesap Bilgileri
+                  Account Information
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ad Soyad</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Full Name</label>
                     <input type="text" defaultValue="Alex Rivera" className="w-full mt-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-primary focus:bg-white transition-colors" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">E-posta</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</label>
                     <input type="email" defaultValue="alex.rivera@example.com" className="w-full mt-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-primary focus:bg-white transition-colors" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Şifre</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Password</label>
                     <button className="w-full mt-1 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 font-bold hover:bg-slate-50 transition-colors text-left">
-                      Şifreyi Değiştir...
+                      Change Password...
                     </button>
                   </div>
                 </div>
@@ -140,39 +140,39 @@ const Profile = ({ forceTab }) => {
               <div className="glass-card p-6 bg-white border-slate-100">
                 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                   <Settings className="w-5 h-5 text-slate-400" />
-                  Uygulama Tercihleri
+                  App Preferences
                 </h3>
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Tema</p>
-                      <p className="text-xs text-slate-500">Sistem temasına uy</p>
+                      <p className="text-sm font-bold text-slate-900">Theme</p>
+                      <p className="text-xs text-slate-500">Match system theme</p>
                     </div>
                     <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none">
-                      <option>Sistem</option>
-                      <option>Açık</option>
-                      <option>Koyu</option>
+                      <option>System</option>
+                      <option>Light</option>
+                      <option>Dark</option>
                     </select>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Para Birimi</p>
-                      <p className="text-xs text-slate-500">Varsayılan fiyat gösterimi</p>
+                      <p className="text-sm font-bold text-slate-900">Currency</p>
+                      <p className="text-xs text-slate-500">Default price display</p>
                     </div>
                     <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none">
-                      <option>TRY (₺)</option>
                       <option>USD ($)</option>
+                      <option>TRY (₺)</option>
                       <option>EUR (€)</option>
                     </select>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">AI Asistan Dili</p>
-                      <p className="text-xs text-slate-500">Gemini yanıt dili</p>
+                      <p className="text-sm font-bold text-slate-900">AI Assistant Language</p>
+                      <p className="text-xs text-slate-500">Gemini response language</p>
                     </div>
-                    <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none">
-                      <option>Türkçe</option>
-                      <option>English</option>
+                    <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none" defaultValue="English">
+                      <option value="Türkçe">Turkish</option>
+                      <option value="English">English</option>
                     </select>
                   </div>
                 </div>
@@ -182,35 +182,35 @@ const Profile = ({ forceTab }) => {
               <div className="glass-card p-6 bg-white border-slate-100 md:col-span-2">
                 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                   <Bell className="w-5 h-5 text-slate-400" />
-                  Bildirim Ayarları
+                  Notification Settings
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
                     <input type="checkbox" defaultChecked className="w-5 h-5 accent-primary rounded" />
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Fiyat Düşüşleri</p>
-                      <p className="text-xs text-slate-500">Takip edilen ürünler düştüğünde</p>
+                      <p className="text-sm font-bold text-slate-900">Price Drops</p>
+                      <p className="text-xs text-slate-500">When tracked products drop in price</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
                     <input type="checkbox" defaultChecked className="w-5 h-5 accent-primary rounded" />
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Stok Uyarıları</p>
-                      <p className="text-xs text-slate-500">Tükenen ürünler stoğa girdiğinde</p>
+                      <p className="text-sm font-bold text-slate-900">Stock Alerts</p>
+                      <p className="text-xs text-slate-500">When out-of-stock items return</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="w-5 h-5 accent-primary rounded" />
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Piyasa Trendleri</p>
-                      <p className="text-xs text-slate-500">Haftalık indirim bültenleri</p>
+                      <p className="text-sm font-bold text-slate-900">Market Trends</p>
+                      <p className="text-xs text-slate-500">Weekly discount newsletters</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
                     <input type="checkbox" defaultChecked className="w-5 h-5 accent-primary rounded" />
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Sistem Bildirimleri</p>
-                      <p className="text-xs text-slate-500">Güvenlik ve hesap güncellemeleri</p>
+                      <p className="text-sm font-bold text-slate-900">System Notifications</p>
+                      <p className="text-xs text-slate-500">Security and account updates</p>
                     </div>
                   </label>
                 </div>
@@ -218,7 +218,7 @@ const Profile = ({ forceTab }) => {
             </div>
             
             <div className="flex justify-end pt-4">
-              <button className="btn-primary py-3 px-8 text-sm uppercase tracking-widest shadow-lg shadow-primary/20">Değişiklikleri Kaydet</button>
+              <button className="btn-primary py-3 px-8 text-sm uppercase tracking-widest shadow-lg shadow-primary/20">Save Changes</button>
             </div>
           </div>
         )}
@@ -228,9 +228,9 @@ const Profile = ({ forceTab }) => {
             <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300">
               <Bell className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900">Henüz Alarm Yok</h3>
-            <p className="text-slate-500 max-w-xs">Ürün sayfalarından fiyat alarmı kurarak fırsatları kaçırmayın.</p>
-            <button className="text-primary font-bold hover:underline mt-2">Ürünleri Keşfet</button>
+            <h3 className="text-xl font-bold text-slate-900">No Alarms Yet</h3>
+            <p className="text-slate-500 max-w-xs">Don't miss out on deals by setting up price alarms on product pages.</p>
+            <button className="text-primary font-bold hover:underline mt-2">Discover Products</button>
           </div>
         )}
       </div>

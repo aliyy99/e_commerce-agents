@@ -14,7 +14,7 @@ import { motion } from 'framer-motion';
 const Sidebar = ({ activePage, onNavigate }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'campaigns', label: 'Kampanyalar', icon: Tag },
+    { id: 'campaigns', label: 'Campaigns', icon: Tag },
     { id: 'market', label: 'Market Trends', icon: TrendingUp },
     { id: 'tracked', label: 'Tracked Products', icon: Zap },
     { id: 'favorites', label: 'Favorites', icon: Heart },

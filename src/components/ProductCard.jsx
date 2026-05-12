@@ -18,38 +18,38 @@ const ProductCard = ({ product, onClick, onFavorite, onTrack, isFavorite, isTrac
             disabled
             onClick={(e) => { e.stopPropagation(); }}
             className="w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-slate-300 shadow-sm transition-all cursor-not-allowed"
-            title="Analiz Et (Yakında)"
+            title="Analyze (Coming Soon)"
           >
             <Zap className="w-4 h-4 text-slate-300" />
           </button>
           <button 
             onClick={(e) => { e.stopPropagation(); onFavorite(product); }}
             className={`w-8 h-8 backdrop-blur rounded-full flex items-center justify-center shadow-sm transition-all ${isFavorite ? 'bg-accent-rose text-white' : 'bg-white/90 text-slate-400 hover:text-accent-rose hover:bg-white'}`}
-            title="Favorilere Ekle"
+            title="Add to Favorites"
           >
             <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
           </button>
           <button 
             onClick={(e) => { e.stopPropagation(); onTrack(product); }}
             className={`w-8 h-8 backdrop-blur rounded-full flex items-center justify-center shadow-sm transition-all ${isTracked ? 'bg-primary text-white' : 'bg-white/90 text-slate-400 hover:text-primary hover:bg-white'}`}
-            title="Takip Et"
+            title="Track"
           >
             <Bell className="w-4 h-4" fill={isTracked ? "currentColor" : "none"} />
           </button>
         </div>
       </div>
       <div className="p-5 flex-1 flex flex-col">
-        <h3 className="text-lg font-bold text-slate-900 mb-2 line-clamp-1">{product.name}</h3>
+        <h3 className="text-lg font-bold text-slate-900 mb-2">{product.name}</h3>
         <p className="text-xs text-slate-500 mb-4 line-clamp-2 flex-1">
           {product.description}
         </p>
         <div className="mt-auto border-t border-slate-100 pt-4 flex items-center justify-between">
           <div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Başlangıç</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase">Starting At</p>
             <p className="text-lg font-black text-slate-900">${Math.min(...product.stores.map(s => s.price)).toLocaleString()}</p>
           </div>
           <button className="text-xs font-bold text-primary hover:underline">
-            Detayları Gör
+            View Details
           </button>
         </div>
       </div>

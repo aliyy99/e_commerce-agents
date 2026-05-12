@@ -15,32 +15,32 @@ const Campaigns = () => {
     {
       id: 1,
       type: 'coupon',
-      title: 'Teknoloji Festivali İndirimi',
-      description: 'Seçili teknoloji ürünlerinde anında %15 indirim fırsatı. Sadece hafta sonuna özel.',
+      title: 'Tech Festival Sale',
+      description: 'Instant 15% discount on selected tech products. Weekend only.',
       code: 'TECHFEST15',
-      expire: '2 gün kaldı'
+      expire: '2 days left'
     },
     {
       id: 2,
       type: 'coupon',
-      title: 'İlk Alışverişe Özel',
-      description: 'SHOPSAGE.AI üzerinden yapacağınız ilk elektronik alışverişinde geçerli 500 TL indirim.',
-      code: 'SAGE500',
-      expire: '7 gün kaldı'
+      title: 'First Purchase Special',
+      description: '$50 discount valid on your first electronics purchase via SHOPSAGE.AI.',
+      code: 'SAGE50',
+      expire: '7 days left'
     },
     {
       id: 3,
       type: 'news',
-      title: 'Apple Eğitim İndirimleri Başladı',
-      description: 'Üniversite öğrencileri ve öğretmenler için Mac ve iPad modellerinde özel fiyatlandırmalar ve hediye AirPods fırsatı stoklarla sınırlı.',
-      date: 'Bugün'
+      title: 'Apple Education Sales Started',
+      description: 'Special pricing and free AirPods for university students and teachers on Mac and iPad models. Limited stock.',
+      date: 'Today'
     },
     {
       id: 4,
       type: 'news',
-      title: 'Samsung Unpacked Etkinliği',
-      description: 'Yeni nesil katlanabilir cihazlar ve yapay zeka entegrasyonu hakkında duyurular yakında geliyor. Etkinlik gününe özel ön sipariş avantajlarını kaçırmayın.',
-      date: 'Yarın'
+      title: 'Samsung Unpacked Event',
+      description: 'Announcements about next-gen foldable devices and AI integration coming soon. Don\'t miss event-day pre-order benefits.',
+      date: 'Tomorrow'
     }
   ];
 
@@ -51,8 +51,8 @@ const Campaigns = () => {
           <Tag className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-3xl font-display font-black text-slate-900">Kampanyalar ve Kuponlar</h2>
-          <p className="text-slate-500 mt-1 text-sm">En güncel fırsatlar, indirim kodları ve sektörel haberler.</p>
+          <h2 className="text-3xl font-display font-black text-slate-900">Campaigns and Coupons</h2>
+          <p className="text-slate-500 mt-1 text-sm">Latest deals, discount codes, and industry news.</p>
         </div>
       </div>
 
@@ -61,7 +61,7 @@ const Campaigns = () => {
         <div className="space-y-6">
           <h3 className="font-bold text-slate-900 flex items-center gap-2">
             <Ticket className="w-5 h-5 text-accent-rose" />
-            İndirim Kuponları
+            Discount Coupons
           </h3>
           {campaigns.filter(c => c.type === 'coupon').map((coupon) => (
             <motion.div 
@@ -82,7 +82,7 @@ const Campaigns = () => {
                 <button 
                   onClick={() => copyToClipboard(coupon.id, coupon.code)}
                   className="p-2 bg-white rounded-lg shadow-sm text-slate-400 hover:text-primary transition-colors border border-slate-100"
-                  title="Kodu Kopyala"
+                  title="Copy Code"
                 >
                   {copiedId === coupon.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -95,7 +95,7 @@ const Campaigns = () => {
         <div className="space-y-6">
           <h3 className="font-bold text-slate-900 flex items-center gap-2">
             <BellRing className="w-5 h-5 text-primary" />
-            Özel İndirim Haberleri
+            Special Discount News
           </h3>
           {campaigns.filter(c => c.type === 'news').map((news) => (
             <motion.div 
@@ -111,7 +111,7 @@ const Campaigns = () => {
               </div>
               <p className="text-sm text-slate-500 leading-relaxed">{news.description}</p>
               <button className="mt-4 text-xs font-black text-primary uppercase tracking-widest hover:underline">
-                Detayları Gör
+                View Details
               </button>
             </motion.div>
           ))}

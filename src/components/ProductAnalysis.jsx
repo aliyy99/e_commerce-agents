@@ -20,19 +20,19 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
   const recommendedPrice = Math.min(...stores.map(s => s.price));
   
   let strategyColor = 'bg-slate-400';
-  let strategyText = 'BELİRSİZ';
+  let strategyText = 'UNCERTAIN';
   let isPulsing = false;
   
   if (strategy === 'AL') {
     strategyColor = 'bg-emerald-500';
-    strategyText = 'ŞİMDİ AL';
+    strategyText = 'BUY NOW';
   } else if (strategy === 'BEKLE') {
     strategyColor = 'bg-yellow-500';
-    strategyText = 'BEKLE';
+    strategyText = 'WAIT';
     isPulsing = true;
   } else if (strategy === 'KAÇIN') {
     strategyColor = 'bg-red-500';
-    strategyText = 'KAÇIN';
+    strategyText = 'AVOID';
     isPulsing = true;
   }
 
@@ -89,7 +89,7 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
         {/* Technical Specs Section */}
         {product.specs && (
           <div className="mt-4 space-y-4">
-            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Teknik Detaylar</h4>
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Technical Details</h4>
             <div className="grid grid-cols-1 gap-3">
               {product.specs.map(spec => (
                 <div key={spec.label} className="flex justify-between items-center py-1">
@@ -112,9 +112,9 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
           <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Zap className="w-8 h-8" />
           </div>
-          <h3 className="text-xl font-display font-black text-slate-900 mb-2">Detaylı Analiz</h3>
+          <h3 className="text-xl font-display font-black text-slate-900 mb-2">Detailed Analysis</h3>
           <p className="text-slate-500 text-sm max-w-sm mx-auto">
-            Ürüne ait fiyat geçmişi, satıcı güvenilirlik puanları ve müşteri yorumlarının yapay zeka destekli detaylı analizi.
+            AI-powered detailed analysis of the product's price history, seller reliability scores, and customer reviews.
           </p>
         </div>
 
@@ -123,7 +123,7 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
           <button 
             disabled
             className="flex items-center gap-2 px-6 py-3 bg-primary/50 text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 cursor-not-allowed transition-all"
-            title="Şu an aktif değil"
+            title="Currently inactive"
           >
             <Zap className="w-4 h-4" />
             Analyze

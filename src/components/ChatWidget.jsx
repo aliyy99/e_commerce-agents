@@ -100,9 +100,9 @@ const ChatWidget = ({ contextProduct }) => {
                 <button 
                   onClick={handleClearChat} 
                   className="p-2 hover:bg-white/10 rounded-lg transition-all text-white/70 hover:text-white text-xs font-bold"
-                  title="Sohbeti Temizle"
+                  title="Clear Chat"
                 >
-                  Temizle
+                  Clear
                 </button>
                 <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
                   <X className="w-4 h-4" />
@@ -145,7 +145,7 @@ const ChatWidget = ({ contextProduct }) => {
                   </div>
                   <div className="bg-white p-3 rounded-2xl rounded-tl-sm text-[13px] text-slate-500 shadow-sm border border-slate-100 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    Düşünüyor...
+                    Thinking...
                   </div>
                 </motion.div>
               )}
@@ -162,7 +162,7 @@ const ChatWidget = ({ contextProduct }) => {
               <div className="relative flex items-center gap-2">
                 <input 
                   type="text" 
-                  placeholder="Ürünler hakkında bir şey sorun..." 
+                  placeholder="Ask anything about the products..." 
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
