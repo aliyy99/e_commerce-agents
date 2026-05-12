@@ -12,10 +12,11 @@ class Settings:
     # ── Google AI ──────────────────────────────
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-    # Model names
-    FLASH_MODEL = "gemini-3-flash"
-    PRO_MODEL = "gemini-3-pro"
-    IMAGE_MODEL = "imagen-3.0-generate-002"
+    # Model names (env-overridable defaults)
+    FLASH_MODEL = os.getenv("FLASH_MODEL", "gemini-2.5-flash")
+    PRO_MODEL = os.getenv("PRO_MODEL", "gemini-2.5-pro")
+    CHAT_MODEL = os.getenv("CHAT_MODEL", FLASH_MODEL)
+    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "imagen-3.0-generate-002")
 
     # ── Supabase ───────────────────────────────
     SUPABASE_URL = os.getenv("SUPABASE_URL")

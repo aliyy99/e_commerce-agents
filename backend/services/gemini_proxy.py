@@ -1,11 +1,14 @@
 """Backend-for-Frontend Gemini wrappers."""
 import json
+import logging
 
 import google.generativeai as genai
 
 from ..config import settings
 from ..models.requests import ChatRequest
 from .gemini_client import configure_gemini_client
+
+logger = logging.getLogger("shopsage.services.gemini_proxy")
 
 _CHAT_SYSTEM = """
 You are ShopSage Assistant, a highly intelligent and helpful shopping guide.
@@ -35,12 +38,27 @@ def _build_chat_messages(request: ChatRequest) -> list[dict]:
 def generate_chat_reply(request: ChatRequest) -> str:
     """Proxy frontend chat payload to Gemini and return plain reply text."""
     configure_gemini_client()
-    model = genai.GenerativeModel(
-        model_name=settings.PRO_MODEL,
-        system_instruction=_CHAT_SYSTEM,
-    )
-    response = model.generate_content(_build_chat_messages(request))
-    reply_text = (response.text or "").strip()
-    if not reply_text:
-        raise ValueError("Gemini boş yanıt döndü.")
-    return reply_text
+    messages = _build_chat_messages(request)
+    candidate_models = list(dict.fromkeys([
+        settings.CHAT_MODEL,
+        settings.FLASH_MODEL,
+        settings.PRO_MODEL,
+    ]))
+
+    last_error: Exception | None = None
+    for model_name in candidate_models:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=_CHAT_SYSTEM,
+            )
+            response = model.generate_content(messages)
+            reply_text = (response.text or "").strip()
+            if reply_text:
+                return reply_text
+            raise ValueError(f"Gemini boş yanıt döndü (model={model_name}).")
+        except Exception as exc:
+            logger.warning("Chat model failed (model=%s): %s", model_name, exc)
+            last_error = exc
+
+    raise RuntimeError("Hiçbir chat modeli yanıt üretemedi.") from last_error
