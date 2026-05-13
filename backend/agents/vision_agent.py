@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║              VISION AGENT  –  Gemini 2.0 Flash              ║
+║              VISION AGENT  –  Gemini 2.5 Flash              ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  WHY FLASH?                                                  ║
 ║  ▸ Sub-second multimodal inference (target < 800 ms)         ║
@@ -136,7 +136,7 @@ async def _fetch_image_bytes(url: str) -> bytes:
 # ─────────────────────────────────────────────────────────────
 async def run_vision_agent(request: VisionRequest) -> VisionResponse:
     """
-    AGENT: Vision Agent  (Gemini 2.0 Flash)
+    AGENT: Vision Agent  (Gemini 2.5 Flash)
     ─────────────────────────────────────
     Main entry-point. Accepts a VisionRequest (Base64 or URL),
     prepares the image part, calls Flash, falls back to Pro if needed,

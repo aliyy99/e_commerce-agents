@@ -112,7 +112,7 @@ const Profile = ({ forceTab }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Hesap Bilgileri */}
+              {/* Account Information */}
               <div className="glass-card p-6 bg-white border-slate-100">
                 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                   <User className="w-5 h-5 text-slate-400" />

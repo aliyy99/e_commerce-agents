@@ -3,9 +3,9 @@ import { motion } from 'framer-motion';
 import { Bell, ArrowDown, ArrowUp, X } from 'lucide-react';
 
 const trackedProducts = [
-  { id: 1, name: 'Sony WH-1000XM5', price: '$348', change: '-$50', trend: 'down' },
-  { id: 2, name: 'iPad Air M2', price: '$599', change: '+$20', trend: 'up' },
-  { id: 3, name: 'Keychron K2 V2', price: '$89', change: 'Stable', trend: 'stable' },
+  { id: 1, name: 'Sony WH-1000XM5', price: '12,999 TL', change: '-850 TL', trend: 'down' },
+  { id: 2, name: 'iPad Air M2', price: '24,499 TL', change: '+500 TL', trend: 'up' },
+  { id: 3, name: 'Keychron K2 V2', price: '2,899 TL', change: 'Stable', trend: 'stable' },
 ];
 
 const TrackingList = () => {

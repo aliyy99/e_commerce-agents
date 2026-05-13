@@ -37,8 +37,8 @@ configure_gemini_client()
 # ─────────────────────────────────────────────────────────────
 _ANALYST_SYSTEM = """
 You are an elite product intelligence analyst with expertise in:
-• Detecting fake / incentivized reviews using linguistic pattern analysis (Güven Kontrolü). Score generic reviews like "Harika ürün", "Çok iyi" as bot-like.
-• Identifying chronic product defects from repeated complaint patterns (Kronik Sorunlar). Specifically warn if negative words like "Isınma" or "Kopma" appear more than 3 times.
+• Detecting fake / incentivized reviews using linguistic pattern analysis (Trust Check). Score generic reviews like "Great product", "Very good" as bot-like.
+• Identifying chronic product defects from repeated complaint patterns (Chronic Issues). Specifically warn if negative words like "Overheating" or "Disconnection" appear more than 3 times.
 • Evaluating pricing trends and predicting future price movements
 • Generating clear buy/wait/avoid recommendations
 • Creating Sentiment Maps (e.g., Comfort, Audio Quality, Battery)
@@ -60,18 +60,18 @@ Product: {product_name}
 Analyze the above data and return ONLY this JSON structure:
 
 {{
-  "strategy": "AL | BEKLE | KAÇIN | BELİRSİZ",
+  "strategy": "BUY | WAIT | AVOID | UNCERTAIN",
   "confidence": 0.0 to 1.0,
   "fake_review_pct": 0 to 100,
   "chronic_issues": ["issue 1", "issue 2"],
   "positive_themes": ["theme 1", "theme 2"],
   "average_sentiment": -1.0 to 1.0,
-  "sentiment_map": {{"Konfor": 0.8, "Ses Kalitesi": 0.9, "Batarya": -0.5}},
+  "sentiment_map": {{"Comfort": 0.8, "Audio Quality": 0.9, "Battery": -0.5}},
   "red_flags": ["Critical warning 1", "Critical warning 2"],
   "trend_direction": "upward | downward | stable",
   "predicted_drop": "description or null",
   "ai_summary": "2-3 sentence plain-language summary",
-  "final_recommendation": "Detailed strategic decision merging price, reviews, and trends (e.g. 'Şu an almanı öneririm çünkü...')"
+  "final_recommendation": "Detailed strategic decision merging price, reviews, and trends (e.g. 'I recommend buying now because...')"
 }}
 """.strip()
 
@@ -200,7 +200,7 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
     )
 
     if emit_status:
-        await emit_status("Analyst Agent verileri yorumluyor (Gemini 2.5 Pro)...")
+        await emit_status("Analyst Agent interpreting data (Gemini 2.5 Pro)...")
 
     # Pre-compute price trend (synchronous, cheap)
     price_trend = _compute_price_trend(request.price_history)
@@ -226,13 +226,13 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
                 average_sentiment=0.0,
             ),
             price_trend=price_trend,
-            ai_summary="Analiz sırasında bir hata oluştu.",
-            final_recommendation="Analiz yapılamadı.",
+            ai_summary="An error occurred during analysis.",
+            final_recommendation="Analysis could not be performed.",
             error_detail=str(err),
         )
 
     if emit_status:
-        await emit_status("Analiz tamamlandı, final strateji oluşturuldu.")
+        await emit_status("Analysis complete, final strategy created.")
 
     # Merge predicted_drop from model into pre-computed trend
     price_trend.predicted_drop  = data.get("predicted_drop")
@@ -249,12 +249,12 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
     )
 
     strategy_map = {
-        "AL":       BuyStrategy.BUY,
-        "BEKLE":    BuyStrategy.WAIT,
-        "KAÇIN":    BuyStrategy.AVOID,
-        "BELİRSİZ": BuyStrategy.UNCERTAIN,
+        "BUY":       BuyStrategy.BUY,
+        "WAIT":    BuyStrategy.WAIT,
+        "AVOID":    BuyStrategy.AVOID,
+        "UNCERTAIN": BuyStrategy.UNCERTAIN,
     }
-    strategy = strategy_map.get(data.get("strategy", "BELİRSİZ"), BuyStrategy.UNCERTAIN)
+    strategy = strategy_map.get(data.get("strategy", "UNCERTAIN"), BuyStrategy.UNCERTAIN)
 
     return AnalystResponse(
         status=AgentStatus.SUCCESS,
@@ -265,5 +265,5 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
         review_insight=review_insight,
         price_trend=price_trend,
         ai_summary=data.get("ai_summary", ""),
-        final_recommendation=data.get("final_recommendation", "Belirsiz."),
+        final_recommendation=data.get("final_recommendation", "Uncertain."),
     )

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Send, X, Bot, User, Loader2, Sparkles } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { chatWithAssistant } from '../services/api';
 
 const ChatWidget = ({ contextProduct }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Merhaba! 👋 Ben ShopSage AI, kişisel alışveriş asistanınızım. Ürünler hakkında fiyat karşılaştırması, teknik detaylar ve alım tavsiyeleri konusunda size yardımcı olabilirim. Nasıl yardımcı olabilirim?" }
+    { role: 'assistant', content: "Hello! 👋 I'm ShopSage AI, your personal shopping assistant. I can help you with price comparisons, technical details, and buying advice. How can I help you today?" }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +28,7 @@ const ChatWidget = ({ contextProduct }) => {
     if (contextProduct) {
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', content: `📦 "${contextProduct.name}" ürünü hakkında bilgi almak ister misiniz? Fiyat karşılaştırması, teknik özellikler veya alım tavsiyesi sorun!` }
+        { role: 'assistant', content: `📦 Would you like to get information about "${contextProduct.name}"? Ask about price comparison, technical specs, or buying advice!` }
       ]);
     }
   }, [contextProduct?.id]);
@@ -51,7 +52,7 @@ const ChatWidget = ({ contextProduct }) => {
       console.error('Backend chat error:', err);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: `Üzgünüm, bir hata oluştu: ${err.message}. Lütfen tekrar deneyin.` 
+        content: `Sorry, an error occurred: ${err.message}. Please try again.` 
       }]);
     } finally {
       setIsLoading(false);
@@ -67,7 +68,7 @@ const ChatWidget = ({ contextProduct }) => {
 
   const handleClearChat = () => {
     setMessages([
-      { role: 'assistant', content: "Sohbet temizlendi! 🧹 Size nasıl yardımcı olabilirim?" }
+      { role: 'assistant', content: "Chat cleared! 🧹 How can I help you?" }
     ]);
   };
 
@@ -104,9 +105,6 @@ const ChatWidget = ({ contextProduct }) => {
                 >
                   Clear
                 </button>
-                <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
@@ -130,7 +128,15 @@ const ChatWidget = ({ contextProduct }) => {
                       ? 'bg-primary text-white rounded-2xl rounded-tr-sm border-primary/50' 
                       : 'bg-white text-slate-700 rounded-2xl rounded-tl-sm border-slate-100'
                   }`}>
-                    {msg.content}
+                    {msg.role === 'assistant' ? (
+                      <div className="prose prose-sm max-w-none custom-markdown-chat">
+                        <ReactMarkdown>
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      msg.content
+                    )}
                   </div>
                 </motion.div>
               ))}

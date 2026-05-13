@@ -4,10 +4,9 @@ export const sampleProducts = [
     "id": 1,
     "name": "Samsung Galaxy S25 Ultra 512 GB 12 GB Ram",
     "images": [
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151512961/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151512955/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151512956/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151512957/fee_786_587_png"
+      "https://cdn.dsmcdn.com/ty1626/product/media/images/prod/PIM/20250121/07/17ba277b-3bea-4c35-9aef-2d9f08b02ce9/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1733/product/media/images/prod/PIM/20250822/08/6d6185f3-0ed9-4818-b746-5257d1614ac9/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1627/product/media/images/prod/PIM/20250121/10/3b70206b-bb6c-489f-83a8-e5e1b7130f03/1_org_zoom.jpg"
     ],
     "description": "Samsung's latest flagship Galaxy S25 Ultra offers exceptional camera capabilities, AI features, and massive performance.",
     "specs": [
@@ -28,7 +27,7 @@ export const sampleProducts = [
     "stores": [
       {
         "name": "Amazon",
-        "price": 2100,
+        "price": 84999,
         "rating": 4.9,
         "maxRating": 5,
         "pros": ["Fast Delivery", "Reliable Seller"],
@@ -37,12 +36,21 @@ export const sampleProducts = [
       },
       {
         "name": "Hepsiburada",
-        "price": 2150,
+        "price": 85500,
         "rating": 4.8,
         "maxRating": 5,
         "pros": ["Installment options"],
         "cons": ["Long delivery time"],
         "url": "#"
+      },
+      {
+        "name": "Vatan Bilgisayar",
+        "price": 86000,
+        "rating": 4.7,
+        "maxRating": 5,
+        "pros": ["Store pickup", "Warranty advantage"],
+        "cons": ["Limited online stock"],
+        "url": "https://www.vatanbilgisayar.com/samsung-galaxy-s25-ultra-12-512-gb-akilli-telefon-titanyum-gumus.html"
       }
     ]
   },
@@ -50,10 +58,9 @@ export const sampleProducts = [
     "id": 2,
     "name": "Samsung Galaxy S24 256 GB 8 GB Ram",
     "images": [
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MP_163030837/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MP_163030839/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MP_163030840/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MP_163030842/fee_786_587_png"
+      "https://cdn.dsmcdn.com/ty1117/product/media/images/prod/PIM/20240103/08/207429ef-ff0a-4513-8f18-cb0a4b3a09cd/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1118/product/media/images/prod/PIM/20240103/08/3122bae7-3778-43e9-a64f-7029ebc057ab/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1116/product/media/images/prod/PIM/20240103/08/833a7d09-c697-488c-8489-7bd162edd7a5/1_org_zoom.jpg"
     ],
     "description": "Combining a compact design with powerful performance, the Galaxy S24 promises a perfect experience for daily use.",
     "specs": [
@@ -74,7 +81,7 @@ export const sampleProducts = [
     "stores": [
       {
         "name": "Trendyol",
-        "price": 950,
+        "price": 34999,
         "rating": 4.7,
         "maxRating": 5,
         "pros": ["Affordable Price", "Coupon Opportunity"],
@@ -87,10 +94,9 @@ export const sampleProducts = [
     "id": 3,
     "name": "Apple Macbook Air M4 16 GB 512 GB SSD macOS 13\"",
     "images": [
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151163925/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151163899/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151163902/fee_786_587_png",
-      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_151163905/fee_786_587_png"
+      "https://cdn.dsmcdn.com/ty1647/product/media/images/prod/PIM/20250307/11/c6e15bb9-e893-4739-86ef-f57050329652/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1648/product/media/images/prod/PIM/20250307/08/ba658490-9f4b-4838-b730-3a3bd191394a/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1649/product/media/images/prod/PIM/20250307/08/929788b4-288e-499a-aa31-43ff895cea26/1_org_zoom.jpg"
     ],
     "description": "Equipped with the new M4 chip, the MacBook Air brings desktop-class performance everywhere with its incredibly thin design.",
     "specs": [
@@ -112,12 +118,21 @@ export const sampleProducts = [
     "stores": [
       {
         "name": "Apple Store",
-        "price": 1499,
+        "price": 62999,
         "rating": 5.0,
         "maxRating": 5,
         "pros": ["Original Seller", "Education Discount"],
         "cons": ["Discounts are rare"],
         "url": "#"
+      },
+      {
+        "name": "Vatan Bilgisayar",
+        "price": 63500,
+        "rating": 4.8,
+        "maxRating": 5,
+        "pros": ["Store pickup", "Warranty advantage"],
+        "cons": ["Limited online stock"],
+        "url": "https://www.vatanbilgisayar.com/macbook-air-mw133tu-a-m4-16gb-512gb-ssd-liquid-retina-13-6inc-gece-yarisi.html"
       }
     ]
   },
@@ -126,9 +141,8 @@ export const sampleProducts = [
     "name": "Apple iPhone 15 128 GB Mavi",
     "images": [
       "https://cdn.dsmcdn.com/ty1609/prod/QC/20241202/09/d1662cea-116d-3e2c-9a7a-66c6204ea0a3/1_org_zoom.jpg",
-      "https://cdn.dsmcdn.com/ty1610/prod/QC/20241202/09/c11aebde-5fdb-3cc4-b4cf-0d9be45e0d4a/1_org_zoom.jpg",
-      "https://cdn.dsmcdn.com/ty1611/prod/QC/20241202/09/ab9bc45d-7a0e-3b2d-96e0-2fbd2007e0c8/1_org_zoom.jpg",
-      "https://cdn.dsmcdn.com/ty1610/prod/QC/20241202/09/0a58a74e-5369-34ba-80ce-1c1a6b0c20a2/1_org_zoom.jpg"
+      "https://cdn.dsmcdn.com/ty1608/prod/QC/20241202/09/120468ea-6a40-36e9-b78c-92f61a70fc57/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1608/prod/QC/20241202/09/3c9eee16-6a90-375f-afaf-c6b4e6ca32a3/1_org_zoom.jpg"
     ],
     "description": "Refreshed with Dynamic Island, 48MP Main camera, and USB-C, the iPhone 15 stands out with eye-catching color options.",
     "specs": [
@@ -149,12 +163,21 @@ export const sampleProducts = [
     "stores": [
       {
         "name": "Amazon",
-        "price": 799,
+        "price": 49999,
         "rating": 4.8,
         "maxRating": 5,
         "pros": ["Reliable Shipping"],
         "cons": ["Color option low in stock"],
         "url": "#"
+      },
+      {
+        "name": "Vatan Bilgisayar",
+        "price": 50499,
+        "rating": 4.8,
+        "maxRating": 5,
+        "pros": ["Store pickup", "Warranty advantage"],
+        "cons": ["Limited online stock"],
+        "url": "https://www.vatanbilgisayar.com/iphone-15-128-gb-akilli-telefon-mavi.html"
       }
     ]
   },
@@ -163,9 +186,8 @@ export const sampleProducts = [
     "name": "Samsung Galaxy Tab S11 Ultra 12GB 256GB SM-X930",
     "images": [
       "https://cdn.dsmcdn.com/ty1744/product/media/images/prod/PIM/20250903/14/b619e051-6cd3-4a25-91f6-7310927114d3/1_org_zoom.jpg",
-      "https://cdn.dsmcdn.com/ty1744/product/media/images/prod/PIM/20250903/14/d633d74c-4a11-48d6-9481-6453c072c4e9/1_org_zoom.jpg",
-      "https://cdn.dsmcdn.com/ty1745/product/media/images/prod/PIM/20250903/14/9719325c-87d2-4b2a-8d14-3d758066f287/1_org_zoom.jpg",
-      "https://cdn.dsmcdn.com/ty1744/product/media/images/prod/PIM/20250903/14/86b45eb9-563b-4cd7-9572-b88301130090/1_org_zoom.jpg"
+      "https://cdn.dsmcdn.com/ty1744/product/media/images/prod/PIM/20250903/14/73445da9-58d3-40c6-915b-41239a5ade72/1_org_zoom.jpg",
+      "https://cdn.dsmcdn.com/ty1743/product/media/images/prod/PIM/20250903/14/70a81be4-6e49-423f-98d5-7982cfc5a100/1_org_zoom.jpg"
     ],
     "description": "Next-generation premium tablet experience that pushes the boundaries with its large screen and productivity features.",
     "specs": [
@@ -187,12 +209,12 @@ export const sampleProducts = [
     "stores": [
       {
         "name": "Vatan Bilgisayar",
-        "price": 1200,
+        "price": 42500,
         "rating": 4.6,
         "maxRating": 5,
         "pros": ["Store pickup", "Warranty advantage"],
         "cons": ["Online price not competitive"],
-        "url": "#"
+        "url": "https://www.vatanbilgisayar.com/samsung-galaxy-tab-s11-ultra-14-inc-android-tablet.html"
       }
     ]
   }

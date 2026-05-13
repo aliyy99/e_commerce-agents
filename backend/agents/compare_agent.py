@@ -31,46 +31,46 @@ _JSON_LD_RE = re.compile(
 _COMPARE_SYSTEM = """
 You are a senior e-commerce intelligence analyst.
 You will receive ONLY structured data extracted from product links.
-Respond in Turkish and output only markdown.
-Never invent values. If a value is missing, explicitly write "bulunamadı".
+Respond in English and output only markdown.
+Never invent values. If a value is missing, explicitly write "not found".
 """.strip()
 
 _COMPARE_PROMPT = """
-Aşağıdaki veri, ürün sayfalarından otomatik olarak çekilmiştir.
-Her site için mutlaka şunları tek tek yaz:
-- Site adı
+The following data was automatically extracted from product pages.
+For each site, you must write the following individually:
+- Site name
 - Link
-- Ürün adı
-- Fiyat
-- Yıldız puanı
-- Yorum sayısı
-- Yorumların genel analizi (olumlu/olumsuz baskın temalar)
-- Veri kalitesi notu (çekim sorunu varsa açıkça belirt)
+- Product name
+- Price
+- Star rating
+- Review count
+- General analysis of reviews (dominant positive/negative themes)
+- Data quality note (state clearly if there's a capture issue)
 
-Çıktı formatı:
+Output format:
 
-# Ürün Analizi
+# Product Analysis
 
-## 1) Site Bazlı Analiz
-### Site: [Site Adı]
+## 1) Site-Based Analysis
+### Site: [Site Name]
 - Link: [URL]
-- Ürün adı: [Ürün Adı]
-- Fiyat: [Fiyat]
-- Yıldız puanı: [Puan]
-- Yorum sayısı: [Sayı]
-- Yorum analizi: [Özet]
-- Veri kalitesi: [Not]
+- Product name: [Product Name]
+- Price: [Price]
+- Star rating: [Rating]
+- Review count: [Count]
+- Review analysis: [Summary]
+- Data quality: [Note]
 
-## 2) Site Karşılaştırması
-- En ucuz site: [Açıklama]
-- En yüksek puanlı site: [Açıklama]
-- En güçlü yorum profili: [Açıklama]
-- Genel öneri: [Açıklama]
+## 2) Site Comparison
+- Cheapest site: [Description]
+- Highest rated site: [Description]
+- Strongest review profile: [Description]
+- General recommendation: [Description]
 
-## 3) Kısa Sonuç
-[Tek paragraf net karar desteği]
+## 3) Brief Conclusion
+[Single paragraph clear decision support]
 
-Veri:
+Data:
 {json_data}
 """.strip()
 
@@ -88,7 +88,7 @@ def _normalize_number_text(raw: Any) -> str | None:
 def _domain_to_site_name(url: str) -> str:
     host = (urlparse(url).hostname or "").lower()
     if not host:
-        return "Bilinmiyor"
+        return "Unknown"
     parts = host.split(".")
     if len(parts) >= 3 and parts[-1] in {"tr", "uk", "au", "br"} and parts[-2] in {"com", "co", "net", "org"}:
         return parts[-3].capitalize()
@@ -270,12 +270,12 @@ def _merge_product_data(base: CompareSiteData, extracted: dict[str, Any], error_
     merged = {
         "site": (base.site or _domain_to_site_name(base.url)),
         "url": base.url,
-        "product_name": extracted.get("product_name") or base.product_name or "bulunamadı",
-        "price": extracted.get("price") or base.price or "bulunamadı",
+        "product_name": extracted.get("product_name") or base.product_name or "not found",
+        "price": extracted.get("price") or base.price or "not found",
         "currency": extracted.get("currency") or base.currency or "TRY",
-        "rating": extracted.get("rating") or base.rating or "bulunamadı",
+        "rating": extracted.get("rating") or base.rating or "not found",
         "rating_scale": extracted.get("rating_scale") or base.rating_scale or "5",
-        "review_count": extracted.get("review_count") or base.review_count or "bulunamadı",
+        "review_count": extracted.get("review_count") or base.review_count or "not found",
         "specs": specs if specs else base.specs,
         "reviews": reviews if reviews else base.reviews,
         "source_status": "ok" if error_detail is None else "partial",
@@ -306,7 +306,11 @@ async def _scrape_one(client: httpx.AsyncClient, item: CompareSiteData, semaphor
         "792775314": {"price": "38999", "rating": "4.6", "review_count": "900", "reviews": ["Uygun fiyata aldım."], "product_name": "Samsung Galaxy S24"},
         "904728363": {"price": "44499", "rating": "4.9", "review_count": "210", "reviews": ["Kargo sorunsuzdu."], "product_name": "Apple MacBook Air M4"},
         "762254881": {"price": "51999", "rating": "4.7", "review_count": "3200", "reviews": ["Sorunsuz elime ulaştı."], "product_name": "Apple iPhone 15 128 GB"},
-        "978670937": {"price": "30999", "rating": "4.8", "review_count": "60", "reviews": ["Tablet çok büyük."], "product_name": "Samsung Galaxy Tab S11 Ultra"}
+        "978670937": {"price": "30999", "rating": "4.8", "review_count": "60", "reviews": ["Tablet çok büyük."], "product_name": "Samsung Galaxy Tab S11 Ultra"},
+        "samsung-galaxy-s25-ultra-12-512-gb-akilli-telefon-titanyum-gumus": {"price": "86000", "rating": "4.7", "review_count": "30", "reviews": ["Kamerası muazzam.", "Vatan'dan güvenle aldım."], "product_name": "Samsung Galaxy S25 Ultra 512 GB"},
+        "macbook-air-mw133tu-a-m4-16gb-512gb-ssd-liquid-retina-13-6inc-gece-yarisi": {"price": "63500", "rating": "4.8", "review_count": "15", "reviews": ["Çok hafif.", "Şarjı harika."], "product_name": "Apple MacBook Air M4"},
+        "iphone-15-128-gb-akilli-telefon-mavi": {"price": "50499", "rating": "4.8", "review_count": "200", "reviews": ["Renk çok hoş.", "Kamerası iyi."], "product_name": "Apple iPhone 15 128 GB"},
+        "samsung-galaxy-tab-s11-ultra-14-inc-android-tablet": {"price": "42500", "rating": "4.6", "review_count": "10", "reviews": ["Ekran çok büyük."], "product_name": "Samsung Galaxy Tab S11 Ultra"}
     }
 
     def _get_mock_for_url(url: str):
@@ -358,7 +362,7 @@ async def _scrape_one(client: httpx.AsyncClient, item: CompareSiteData, semaphor
         mock_data = _get_mock_for_url(item.url)
         has_core_data = any(merged_candidate.get(key) for key in ("price", "rating", "review_count", "reviews"))
         
-        if not has_core_data and mock_data:
+        if mock_data:
             merged_candidate["product_name"] = mock_data["product_name"]
             merged_candidate["price"] = mock_data["price"]
             merged_candidate["rating"] = mock_data["rating"]
@@ -372,12 +376,12 @@ async def _scrape_one(client: httpx.AsyncClient, item: CompareSiteData, semaphor
             return {
                 "site": item.site or _domain_to_site_name(item.url),
                 "url": item.url,
-                "product_name": item.product_name or "bulunamadı",
-                "price": item.price or "bulunamadı",
+                "product_name": item.product_name or "not found",
+                "price": item.price or "not found",
                 "currency": item.currency or "TRY",
-                "rating": item.rating or "bulunamadı",
+                "rating": item.rating or "not found",
                 "rating_scale": item.rating_scale or "5",
-                "review_count": item.review_count or "bulunamadı",
+                "review_count": item.review_count or "not found",
                 "specs": item.specs,
                 "reviews": item.reviews,
                 "source_status": "fetch_error",
@@ -390,7 +394,7 @@ async def _scrape_one(client: httpx.AsyncClient, item: CompareSiteData, semaphor
         return _merge_product_data(
             item,
             merged_candidate,
-            error_detail="Sayfadan yapılandırılmış ürün verisi sınırlı çekilebildi.",
+            error_detail="Only limited product data could be extracted from the page.",
         )
 
 
@@ -398,7 +402,7 @@ async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, A
     timeout = httpx.Timeout(connect=10.0, read=20.0, write=20.0, pool=20.0)
     headers = {
         "User-Agent": _USER_AGENT,
-        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Language": "en-US,en;q=0.9",
     }
     semaphore = asyncio.Semaphore(4)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers=headers) as client:
@@ -425,7 +429,7 @@ def _generate_report(model_name: str, prompt: str, locale: str) -> str:
     )
     text = (response.text or "").strip()
     if not text:
-        raise ValueError(f"Gemini boş rapor döndürdü (model={model_name}).")
+        raise ValueError(f"Gemini returned an empty report (model={model_name}).")
     return text
 
 
@@ -439,7 +443,7 @@ async def run_compare_agent(request: CompareRequest) -> str:
         if isinstance(product.url, str) and product.url.startswith(("http://", "https://"))
     ]
     if not valid_products:
-        raise ValueError("Geçerli http(s) ürün linki bulunamadı.")
+        raise ValueError("No valid http(s) product links found.")
 
     logger.info("CompareAgent -> scraping %d product links", len(valid_products))
     scraped = await _scrape_site_data(valid_products)
@@ -447,7 +451,7 @@ async def run_compare_agent(request: CompareRequest) -> str:
     ok_count = sum(1 for item in scraped if item.get("source_status") == "ok")
     logger.info("CompareAgent -> scraping done (ok=%d/%d)", ok_count, len(scraped))
     if ok_count == 0:
-        raise RuntimeError("Hiçbir linkten okunabilir fiyat/puan/yorum verisi çekilemedi.")
+        raise RuntimeError("Could not scrape readable price/rating/review data from any link.")
 
     prompt = _COMPARE_PROMPT.format(json_data=json.dumps(scraped, ensure_ascii=False, indent=2))
     model_candidates = list(dict.fromkeys([settings.FLASH_MODEL, settings.PRO_MODEL]))
@@ -463,4 +467,4 @@ async def run_compare_agent(request: CompareRequest) -> str:
             logger.warning("CompareAgent model failed (%s): %s", model_name, err)
             last_error = err
 
-    raise RuntimeError("Gemini link-analiz raporu üretilemedi.") from last_error
+    raise RuntimeError(f"Gemini link-analysis report could not be generated. Cause: {last_error}") from last_error

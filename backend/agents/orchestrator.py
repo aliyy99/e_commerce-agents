@@ -87,12 +87,12 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     
     sid = request.session_id
 
-    await emit_status(sid, "System", "Orkestrasyon başlatıldı...")
+    await emit_status(sid, "System", "Orchestration started...")
 
     # ── 1. Vision Agent ─────────────────────────────
     if request.vision is not None:
         agents_invoked.append("vision_agent")
-        await emit_status(sid, "Visionary", "Gemini 3 Flash is analyzing the image...")
+        await emit_status(sid, "Visionary", "Gemini 2.5 Flash is analyzing the image...")
         try:
             vision_result = await run_vision_agent(request.vision)
             if vision_result.status != AgentStatus.ERROR:
@@ -152,7 +152,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     if analyst_req:
         agents_invoked.append("analyst_agent")
         review_count = len(analyst_req.reviews)
-        await emit_status(sid, "Analyst", f"Gemini 3 Pro is processing {review_count}+ reviews for sentiment analysis...")
+        await emit_status(sid, "Analyst", f"Gemini 2.5 Pro is processing {review_count}+ reviews for sentiment analysis...")
         
         async def emit_ana(msg): await emit_status(sid, "Analyst", msg)
         try:
@@ -181,7 +181,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── PHASE 5: Persist to Supabase ──────────────────────────
     if request.save_to_db and (vision_result or analyst_result):
         try:
-            await emit_status(sid, "System", "Sonuçlar Supabase'e kaydediliyor...")
+            await emit_status(sid, "System", "Saving results to Supabase...")
             db_record_id = await upsert_analysis_result({
                 "id":            str(uuid.uuid4()),
                 "product_id":    analyst_result.product_id if analyst_result else None,

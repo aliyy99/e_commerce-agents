@@ -31,9 +31,9 @@ const PipelineLoader = ({ currentAgent = '', message = '' }) => {
           className="w-12 h-12 mx-auto mb-4 border-2 border-slate-200 border-t-primary rounded-full"
         />
         <h3 className="text-xl font-display font-black text-slate-900 mb-2">
-          Ajanlar senin için pazarlık yapıyor...
+          Agents are negotiating for you...
         </h3>
-        <p className="text-sm text-slate-500">{message || 'Pipeline başlatılıyor...'}</p>
+        <p className="text-sm text-slate-500">{message || 'Starting pipeline...'}</p>
       </div>
 
       {/* Pipeline Progress */}

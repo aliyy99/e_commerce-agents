@@ -45,16 +45,16 @@ async def mock_search(query: str) -> tuple[List[StoreResult], List[str]]:
     ]
 
     reviews = [
-        "Harika bir ürün, ses kalitesi muazzam.",
-        "Bataryası çok hızlı bitiyor, tavsiye etmem.",
-        "Kargolama çok gecikti ama ürün orijinal ve güzel.",
-        "Konfor açısından mükemmel, saatlerce takıyorum ağrı yapmıyor.",
-        "Ürün orijinal değil galiba, kutusu hasarlıydı.",
-        "Bu fiyata alınabilecek en iyi cihaz.",
-        "Sürekli ısınma sorunu yaşıyorum, kesinlikle kronik.",
-        "Isınma yüzünden cihaz kendini kapatıyor.",
-        "Bağlantıda sürekli kopma sorunları oluyor, hiç stabil değil.",
-        "Oyun oynarken kopma yapıyor ve ciddi ısınma problemi var, tavsiye etmiyorum."
+        "Great product, the sound quality is amazing.",
+        "Battery life is very short, I don't recommend it.",
+        "Shipping was very late but the product is original and nice.",
+        "Perfect in terms of comfort, I wear it for hours without pain.",
+        "I think the product is not original, the box was damaged.",
+        "Best device you can buy for this price.",
+        "I have constant overheating issues, definitely chronic.",
+        "The device shuts itself down due to overheating.",
+        "There are constant connection drops, not stable at all.",
+        "It drops connection while playing games and has serious overheating problems, I do not recommend it."
     ]
 
     return stores, reviews
@@ -69,7 +69,7 @@ async def run_detective_agent(request: DetectiveRequest, emit_status=None) -> De
     logger.info("DetectiveAgent → starting (keywords=%r)", request.product_keywords)
     
     if emit_status:
-        await emit_status("Detective Agent aranıyor: " + request.product_keywords)
+        await emit_status("Detective Agent searching: " + request.product_keywords)
 
     current_query = request.product_keywords
     retries = 0
@@ -92,18 +92,18 @@ async def run_detective_agent(request: DetectiveRequest, emit_status=None) -> De
         retries += 1
         
         if emit_status:
-            await emit_status(f"Bulunamadı, anahtar kelime kısaltılarak tekrar aranıyor: {current_query}")
+            await emit_status(f"Not found, retrying with shortened keyword: {current_query}")
 
     if not stores:
         return DetectiveResponse(
             status=AgentStatus.ERROR,
             query_used=current_query,
             retries=retries,
-            error_detail="Arama motorunda sonuç bulunamadı."
+            error_detail="No results found in the search engine."
         )
 
     if emit_status:
-        await emit_status("Fiyatlar ve yorumlar başarıyla çekildi.")
+        await emit_status("Prices and reviews successfully extracted.")
 
     return DetectiveResponse(
         status=AgentStatus.SUCCESS if retries == 0 else AgentStatus.FALLBACK,

@@ -27,6 +27,7 @@ function App() {
   // User Data State
   const [favorites, setFavorites] = useState([]);
   const [tracked, setTracked] = useState([]);
+  const [analysisReports, setAnalysisReports] = useState({});
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -415,6 +416,12 @@ function App() {
                   onTrack={() => toggleTracked(selectedProduct)}
                   isFavorite={favorites.some(f => f.id === selectedProduct.id)}
                   isTracked={tracked.some(t => t.id === selectedProduct.id)}
+                  analysisReports={analysisReports}
+                  onAnalysisComplete={(report) => {
+                    setAnalysisReports((prev) =>
+                      selectedProduct ? { ...prev, [selectedProduct.id]: report } : prev
+                    );
+                  }}
                 />
               </motion.div>
             )}

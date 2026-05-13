@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Bell, Star, Zap, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { compareProducts } from '../services/api';
+import { PRODUCT_IMAGE_FALLBACK } from '../utils/productImage';
 
 const productLinksMapping = {
   "Samsung Galaxy S25 Ultra 512 GB 12 GB Ram": [
     "https://www.hepsiburada.com/samsung-galaxy-s25-ultra-512-gb-12-gb-ram-samsung-turkiye-garantili-siyah-titanyum-p-HBCV00007MIDSU",
     "https://www.trendyol.com/samsung/galaxy-s25-ultra-512-gb-titanyum-siyah-samsung-turkiye-garantili-p-889950721?boutiqueId=61&merchantId=639331",
-    "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxys25-ultra-12gb256gb-akilli-telefon-titanyum-1245636.html"
+    "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxys25-ultra-12gb256gb-akilli-telefon-titanyum-1245636.html",
+    "https://www.vatanbilgisayar.com/samsung-galaxy-s25-ultra-12-512-gb-akilli-telefon-titanyum-gumus.html"
   ],
   "Samsung Galaxy S24 256 GB 8 GB Ram": [
     "https://www.hepsiburada.com/samsung-galaxy-s24-256-gb-8-gb-ram-samsung-turkiye-garantili-siyah-p-HBCV00005MLJA9",
@@ -18,27 +20,28 @@ const productLinksMapping = {
   "Apple Macbook Air M4 16 GB 512 GB SSD macOS 13\"": [
     "https://www.hepsiburada.com/apple-macbook-air-m5-16gb-512gb-ssd-macos-13-tasinabilir-bilgisayar-gece-yarisi-mdhe4tu-a-pm-HBC0000D5X0MD",
     "https://www.trendyol.com/apple/13-macbook-air-apple-m4-chip-with-10-core-cpu-and-10-core-gpu-16gb-512gb-ssd-yildiz-isigi-p-904728363?boutiqueId=689770&merchantId=968",
-    "https://www.mediamarkt.com.tr/tr/product/_apple-mc7c4tuamacbook-airapple-m4-islemci10-cekirdek-cpu-10-cekirdek-gpu16gb-ram512gb-ssd153sky-blue-1245668.html"
+    "https://www.mediamarkt.com.tr/tr/product/_apple-mc7c4tuamacbook-airapple-m4-islemci10-cekirdek-cpu-10-cekirdek-gpu16gb-ram512gb-ssd153sky-blue-1245668.html",
+    "https://www.vatanbilgisayar.com/macbook-air-mw133tu-a-m4-16gb-512gb-ssd-liquid-retina-13-6inc-gece-yarisi.html"
   ],
   "Apple iPhone 15 128 GB Mavi": [
     "https://www.hepsiburada.com/apple-iphone-15-128-gb-mavi-p-HBCV00004X9ZCK",
     "https://www.trendyol.com/apple/iphone-15-128-gb-mavi-p-762254881?boutiqueId=61&merchantId=570209",
-    "https://www.mediamarkt.com.tr/tr/product/_apple-iphone-15-128-gb-akilli-telefon-mavi-mtp43tua-1232436.html"
+    "https://www.mediamarkt.com.tr/tr/product/_apple-iphone-15-128-gb-akilli-telefon-mavi-mtp43tua-1232436.html",
+    "https://www.vatanbilgisayar.com/iphone-15-128-gb-akilli-telefon-mavi.html"
   ],
   "Samsung Galaxy Tab S11 Ultra 12GB 256GB SM-X930": [
     "https://www.hepsiburada.com/samsung-galaxy-tab-s11-ultra-12gb-256gb-sm-x930-p-HBCV00009UIZ0A",
     "https://www.trendyol.com/samsung/galaxy-tab-s11-ultra-12gb-256gb-gri-tablet-p-978670937?boutiqueId=61&merchantId=1090273",
-    "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-tab-s11-ultra-sm-x930-146-inc-12-gb-256-gb-tablet-gri-164212346.html"
+    "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-tab-s11-ultra-sm-x930-146-inc-12-gb-256-gb-tablet-gri-164212346.html",
+    "https://www.vatanbilgisayar.com/samsung-galaxy-tab-s11-ultra-14-inc-android-tablet.html"
   ]
 };
 
-const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, isTracked }) => {
+const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, isTracked, analysisReports, onAnalysisComplete }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisReport, setAnalysisReport] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
-    setAnalysisReport(null);
     setCurrentImageIndex(0);
   }, [product]);
 
@@ -55,15 +58,17 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
     );
   }
 
-  const { name: productName, stores, images } = product;
-  const productImages = images && images.length > 0 ? images : [product.image];
+  const { name: productName, images, id: productId } = product;
+  const productImages = (images || []).filter((image) => typeof image === 'string' && image.trim());
+  const resolvedProductImages = productImages.length > 0 ? productImages : [PRODUCT_IMAGE_FALLBACK];
+  const analysisReport = analysisReports?.[productId];
 
   const handleNextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
+    setCurrentImageIndex((prev) => (prev + 1) % resolvedProductImages.length);
   };
 
   const handlePrevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
+    setCurrentImageIndex((prev) => (prev - 1 + resolvedProductImages.length) % resolvedProductImages.length);
   };
 
   const handleAnalyze = async () => {
@@ -79,16 +84,16 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
       }
 
       if (links.length === 0) {
-        throw new Error('Bu ürün için önceden tanımlanmış link bulunamadı.');
+        throw new Error('No predefined links found for this product.');
       }
 
       const productsData = links.map((url) => {
-        let siteName = 'Bilinmiyor';
+        let siteName = 'Unknown';
         try {
           const hostname = new URL(url).hostname.replace(/^www\./i, '');
           siteName = hostname.split('.')[0] || hostname;
         } catch {
-          siteName = 'Bilinmiyor';
+          siteName = 'Unknown';
         }
 
         return {
@@ -100,13 +105,13 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
 
       const result = await compareProducts(productsData);
       if (!result?.markdown_report) {
-        throw new Error('Backend geçerli analiz raporu döndürmedi.');
+        throw new Error('Backend did not return a valid analysis report.');
       }
-      setAnalysisReport(result.markdown_report);
+      onAnalysisComplete(result.markdown_report);
     } catch (err) {
       console.error(err);
-      const message = err instanceof Error ? err.message : 'Analiz sırasında beklenmeyen bir hata oluştu.';
-      setAnalysisReport(`Analiz oluşturulamadı: ${message}`);
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred during analysis.';
+      onAnalysisComplete(`Analysis could not be generated: ${message}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -137,18 +142,23 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
             <AnimatePresence mode="wait">
               <motion.img
                 key={currentImageIndex}
-                src={productImages[currentImageIndex]}
+                src={resolvedProductImages[currentImageIndex]}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
                 alt={`${productName} - Image ${currentImageIndex + 1}`}
+                onError={(e) => {
+                  if (e.currentTarget.dataset.fallbackApplied === 'true') return;
+                  e.currentTarget.dataset.fallbackApplied = 'true';
+                  e.currentTarget.src = PRODUCT_IMAGE_FALLBACK;
+                }}
                 className="w-full h-full object-contain mix-blend-multiply p-4"
               />
             </AnimatePresence>
             
-            {productImages.length > 1 && (
-              <>
+            {resolvedProductImages.length > 1 && (
+            <>
                 <button 
                   onClick={handlePrevImage}
                   className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 backdrop-blur shadow-sm flex items-center justify-center text-slate-700 hover:bg-white hover:text-primary transition-colors z-10"
@@ -162,7 +172,7 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
                   <ChevronRight className="w-5 h-5" />
                 </button>
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10 bg-white/60 backdrop-blur-md px-3 py-1.5 rounded-full">
-                  {productImages.map((_, idx) => (
+                  {resolvedProductImages.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentImageIndex(idx)}
@@ -222,32 +232,12 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm shadow-lg transition-all ${isAnalyzing ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary-dark shadow-primary/20 hover:-translate-y-0.5'}`}
           >
             <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse' : ''}`} />
-            {isAnalyzing ? 'Analiz Ediliyor...' : 'Analyze'}
+            {isAnalyzing ? 'Analyzing...' : 'Analyze'}
           </button>
         </div>
 
-        <div className="mt-14 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
-              <Zap className="w-4 h-4" />
-            </div>
-            <label className="block text-sm font-black text-slate-800 uppercase tracking-wider">
-              Otomatik Analiz Sistemi
-            </label>
-          </div>
-          <div className="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-4 leading-relaxed">
-            {productLinksMapping[productName] ? 
-              <>Bu ürün için önceden tanımlanmış e-ticaret <strong>(Hepsiburada, Trendyol, MediaMarkt)</strong> linkleri kullanılarak derinlemesine analiz yapılacaktır.</> : 
-              <>Bu ürün için mağaza linkleri kullanılarak analiz yapılacaktır.</>}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-3 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-            Backend bu linklerden gerçek fiyat, yıldız ve yorum sinyallerini çekerek Gemini ile yapılandırılmış analiz üretir.
-          </p>
-        </div>
-
         {analysisReport ? (
-          <div className="prose prose-slate max-w-none bg-white p-8 rounded-2xl shadow-sm border border-slate-100 overflow-y-auto max-h-[700px] custom-markdown">
+          <div className="prose prose-slate max-w-none bg-white p-8 rounded-2xl shadow-sm border border-slate-100 overflow-y-auto max-h-[700px] custom-markdown mt-14">
             <ReactMarkdown
               components={{
                 h1: ({node, ...props}) => <h1 className="text-3xl font-black text-slate-900 border-b border-slate-100 pb-4 mb-6" {...props} />,
@@ -268,13 +258,13 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
             </ReactMarkdown>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center text-center p-12 h-full bg-white rounded-2xl border border-slate-100 shadow-sm mt-2">
+          <div className="flex flex-col items-center justify-center text-center p-12 h-full bg-white rounded-2xl border border-slate-100 shadow-sm mt-14">
             <div className="w-20 h-20 bg-primary/5 text-primary rounded-3xl flex items-center justify-center mx-auto mb-6 transform rotate-3">
               <Zap className="w-10 h-10 -rotate-3" />
             </div>
-            <h3 className="text-2xl font-display font-black text-slate-900 mb-3">Kapsamlı Ürün Analizi</h3>
+            <h3 className="text-2xl font-display font-black text-slate-900 mb-3">Comprehensive Product Analysis</h3>
             <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-              <strong>Analyze</strong> butonuna basarak ürüne ait güncel verilerle Gemini üzerinden kapsamlı bir rakip ve pazar analizi alabilirsiniz. Rapor saniyeler içinde oluşturulacaktır.
+              Click the <strong>Analyze</strong> button to get a comprehensive competitor and market analysis via Gemini with up-to-date data for the product. The report will be generated in seconds.
             </p>
           </div>
         )}

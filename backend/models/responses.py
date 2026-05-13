@@ -28,7 +28,7 @@ class VisionResponse(BaseModel):
     Identifies product details from an image.
     """
     status:       AgentStatus
-    agent:        str              = "vision_agent (gemini-2.0-flash)"
+    agent:        str              = "vision_agent (gemini-2.5-flash)"
     product_name: Optional[str]   = None
     search_keywords: Optional[str] = Field(None, description="Keywords for Detective Agent.")
     brand:        Optional[str]   = None
@@ -36,7 +36,7 @@ class VisionResponse(BaseModel):
     specs:        List[DetectedSpec] = Field(default_factory=list)
     confidence:   Optional[float] = Field(None, ge=0.0, le=1.0)
     raw_text:     Optional[str]   = None   # Full model output for debugging
-    model_used:   str             = "gemini-2.0-flash"
+    model_used:   str             = "gemini-2.5-flash"
     error_detail: Optional[str]   = None
 
 
@@ -152,5 +152,3 @@ class ChatResponse(BaseModel):
 
 class CompareResponse(BaseModel):
     markdown_report: str
-
-
