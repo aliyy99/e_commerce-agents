@@ -144,3 +144,22 @@ class ChatRequest(BaseModel):
     user_message: str
     context_data: Optional[dict] = Field(None, description="Current product analysis data")
 
+# ──────────────────────────────────────────────────────────────
+# Compare Agent
+# ──────────────────────────────────────────────────────────────
+class CompareSiteData(BaseModel):
+    site: Optional[str] = None
+    url: str = Field(..., description="Direct product page URL.")
+    product_name: Optional[str] = None
+    price: Optional[str] = None
+    currency: str = "TRY"
+    rating: Optional[str] = None
+    rating_scale: str = "5"
+    review_count: Optional[str] = None
+    specs: dict = Field(default_factory=dict)
+    reviews: List[str] = Field(default_factory=list)
+
+class CompareRequest(BaseModel):
+    products: List[CompareSiteData]
+    locale: str = Field(default="tr", description="Output locale for the comparison report.")
+

@@ -6,11 +6,31 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 
 from ..agents.analyst_agent import run_analyst_agent
-from ..models.requests      import AnalystRequest
-from ..models.responses     import AnalystResponse, AgentStatus
+from ..agents.compare_agent import run_compare_agent
+from ..models.requests      import AnalystRequest, CompareRequest
+from ..models.responses     import AnalystResponse, AgentStatus, CompareResponse
 
 logger = logging.getLogger("shopsage.routes.analyze")
 router = APIRouter(prefix="/analyze", tags=["Analyst Agent"])
+
+@router.post(
+    "/compare",
+    response_model=CompareResponse,
+    summary="Multi-site product comparison and analysis",
+    status_code=status.HTTP_200_OK,
+)
+async def analyze_compare(body: CompareRequest) -> CompareResponse:
+    logger.info("POST /analyze/compare with %d products", len(body.products))
+    try:
+        report = await run_compare_agent(body)
+        return CompareResponse(markdown_report=report)
+    except Exception as err:
+        logger.error("Compare agent failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(err),
+        )
+
 
 
 @router.post(

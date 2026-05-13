@@ -3,10 +3,12 @@ ShopSage AI - Application Settings
 Yüklenen ortam değişkenleri ve güvenlik yapılandırmaları.
 """
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# .env dosyasını yükle
-load_dotenv()
+# .env dosyasını backend klasöründen yükle (çalıştırma dizininden bağımsız)
+_BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(_BASE_DIR / ".env")
 
 class Settings:
     # ── Google AI ──────────────────────────────

@@ -6,7 +6,7 @@
  * Backend base URL defaults to localhost:8000 for dev.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
 const MOCK_USER_ID = 'mock-user-001';
 
 // ── Helper ─────────────────────────────────────────────────────
@@ -18,7 +18,17 @@ async function apiFetch(path, options = {}) {
     ...options.headers,
   };
   
-  const response = await fetch(url, { ...options, headers });
+  let response;
+  try {
+    response = await fetch(url, { ...options, headers });
+  } catch (err) {
+    const networkError = new Error(
+      `Backend bağlantısı kurulamadı (${url}). API sunucusunun çalıştığını doğrulayın.`,
+    );
+    networkError.code = 'NETWORK_ERROR';
+    networkError.cause = err;
+    throw networkError;
+  }
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Network error' }));
@@ -79,6 +89,14 @@ export async function analyzeImage(imageInput, locale = 'tr') {
     body: JSON.stringify(payload),
   });
 }
+
+export async function compareProducts(products) {
+  return apiFetch('/analyze/compare', {
+    method: 'POST',
+    body: JSON.stringify({ products }),
+  });
+}
+
 
 
 // ── Pipeline (Orchestration) ───────────────────────────────────

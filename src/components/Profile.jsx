@@ -63,7 +63,7 @@ const Profile = ({ forceTab }) => {
                   className="glass-card overflow-hidden group border-slate-100 hover:border-primary/30 transition-all bg-white"
                 >
                   <div className="aspect-video relative overflow-hidden">
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <img src={item.images?.[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     <div className="absolute top-3 right-3 px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-xs font-bold text-slate-900 border border-slate-100">
                       {item.price}
                     </div>

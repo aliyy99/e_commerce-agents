@@ -150,3 +150,7 @@ class OrchestrateResponse(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
 
+class CompareResponse(BaseModel):
+    markdown_report: str
+
+

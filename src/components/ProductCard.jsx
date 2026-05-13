@@ -9,7 +9,7 @@ const ProductCard = ({ product, onClick, onFavorite, onTrack, isFavorite, isTrac
     >
       <div className="relative h-48 bg-slate-100 overflow-hidden">
         <img 
-          src={product.image} 
+          src={product.images?.[0]} 
           alt={product.name} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
