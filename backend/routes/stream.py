@@ -13,6 +13,7 @@ Why SSE over WebSocket?
 - No keep-alive handshake overhead
 """
 import asyncio
+import json
 import logging
 import time
 from typing import AsyncGenerator
@@ -75,9 +76,15 @@ async def _event_generator(session_id: str) -> AsyncGenerator[str, None]:
         while time.monotonic() - start < timeout:
             try:
                 event = await asyncio.wait_for(q.get(), timeout=30)
-                # Format as SSE
+                # Format as SSE. Use json.dumps so quotes/backslashes/newlines
+                # in agent messages cannot corrupt the data payload.
+                payload = json.dumps({
+                    "agent": event["agent"],
+                    "message": event["message"],
+                    "ts": event["timestamp"],
+                }, ensure_ascii=False)
                 yield f"event: {event['type']}\n"
-                yield f"data: {{\"agent\":\"{event['agent']}\",\"message\":\"{event['message']}\",\"ts\":{event['timestamp']}}}\n\n"
+                yield f"data: {payload}\n\n"
 
                 if event["type"] == "done":
                     break

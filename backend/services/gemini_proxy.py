@@ -126,10 +126,13 @@ def generate_chat_reply(request: ChatRequest) -> str:
     """Proxy frontend chat payload to Gemini and return plain reply text."""
     configure_gemini_client()
     messages = _build_chat_messages(request)
+    # Order matters: primary chat model first, then a distinct Flash fallback
+    # (so we don't re-hit the same model on a 429), then Pro as last resort.
     candidate_models = list(dict.fromkeys([
         settings.CHAT_MODEL,
-        settings.PRO_MODEL,
+        settings.CHAT_FALLBACK_MODEL,
         settings.FLASH_MODEL,
+        settings.PRO_MODEL,
     ]))
 
     use_search = _is_timing_question(request.user_message)

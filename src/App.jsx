@@ -39,13 +39,30 @@ function App() {
   const [visionError, setVisionError] = useState(null);
 
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
+
+    if (!file.type?.startsWith('image/')) {
+      setVisionError('Lütfen geçerli bir görsel dosyası seçin.');
+      input.value = '';
+      return;
+    }
+
+    setVisionError(null);
     const reader = new FileReader();
-    reader.onload = (event) => {
-      setUploadedImage(event.target.result);
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setUploadedImage(reader.result);
+      } else {
+        setVisionError('Görsel okunamadı. Lütfen farklı bir dosya deneyin.');
+      }
+    };
+    reader.onerror = () => {
+      setVisionError('Görsel okunamadı. Lütfen tekrar deneyin.');
     };
     reader.readAsDataURL(file);
+    input.value = '';
   };
 
   const finalizeQuery = useCallback((query, { autoSelect = true } = {}) => {
@@ -77,14 +94,14 @@ function App() {
     setShowSuggestions(false);
     setCommittedQuery(searchQuery);
 
-    // Image-driven path: hand the photo to the Vision Agent (Gemini Flash → Pro fallback).
+    // Image-driven path: hand the photo to the Vision Agent (Gemini 3 Flash with Pro fallback).
     if (uploadedImage) {
       try {
         const result = await analyzeImage(uploadedImage, 'tr');
 
         // Confident catalog hit → jump straight to the product.
         const matched = matchProductFromVision(result, sampleProducts);
-        if (matched && (result.confidence ?? 1) >= 0.55) {
+        if (matched) {
           setSelectedProduct(matched);
           setSearchQuery(matched.name);
           setIsRunning(false);
@@ -250,7 +267,7 @@ function App() {
                 onFocus={() => setShowSuggestions(searchQuery.length > 0)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search for a product or paste a link..." 
+                placeholder="Search for a product..."
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-900 placeholder:text-slate-400"
               />
               {isSearching && (
@@ -260,8 +277,25 @@ function App() {
               )}
               <label className="cursor-pointer p-1.5 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-primary">
                 <Camera className="w-4 h-4" />
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onClick={(e) => { e.currentTarget.value = ''; }}
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
               </label>
+              {uploadedImage && (
+                <div className="relative">
+                  <img src={uploadedImage} alt="Uploaded" className="w-7 h-7 rounded-md object-cover border border-primary/30" />
+                  <button
+                    onClick={() => setUploadedImage(null)}
+                    className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-accent-rose text-white rounded-full text-[8px] flex items-center justify-center font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
               <button 
                 onClick={handleSearch}
                 disabled={isRunning}
@@ -321,17 +355,6 @@ function App() {
           </div>
 
           <div className="flex items-center gap-4 ml-6">
-            {uploadedImage && (
-              <div className="relative">
-                <img src={uploadedImage} alt="Uploaded" className="w-10 h-10 rounded-lg object-cover border-2 border-primary/30" />
-                <button 
-                  onClick={() => setUploadedImage(null)} 
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-accent-rose text-white rounded-full text-[8px] flex items-center justify-center font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
             <button className="relative p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100">
               <Bell className="w-5 h-5" />
               {tracked.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white" />}

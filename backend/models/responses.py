@@ -10,7 +10,7 @@ from enum import Enum
 
 class AgentStatus(str, Enum):
     SUCCESS  = "success"
-    FALLBACK = "fallback"   # Flash → Pro fallback was triggered
+    FALLBACK = "fallback"   # Primary → secondary Pro model fallback was triggered
     ERROR    = "error"
 
 
@@ -24,11 +24,11 @@ class DetectedSpec(BaseModel):
 
 class VisionResponse(BaseModel):
     """
-    Structured output from the Vision Agent (Gemini Flash).
-    Identifies product details from an image.
+    Structured output from the Vision Agent (Gemini 3 Flash, with Gemini 2.5
+    Pro fallback). Identifies product details from an image.
     """
     status:       AgentStatus
-    agent:        str              = "vision_agent (gemini-2.5-flash)"
+    agent:        str              = "vision_agent (gemini-3-flash)"
     product_name: Optional[str]   = None
     search_keywords: Optional[str] = Field(None, description="Keywords for Detective Agent.")
     brand:        Optional[str]   = None
@@ -36,7 +36,7 @@ class VisionResponse(BaseModel):
     specs:        List[DetectedSpec] = Field(default_factory=list)
     confidence:   Optional[float] = Field(None, ge=0.0, le=1.0)
     raw_text:     Optional[str]   = None   # Full model output for debugging
-    model_used:   str             = "gemini-2.5-flash"
+    model_used:   str             = "gemini-3-flash-preview"
     error_detail: Optional[str]   = None
 
 

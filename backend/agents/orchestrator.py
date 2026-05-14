@@ -92,7 +92,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── 1. Vision Agent ─────────────────────────────
     if request.vision is not None:
         agents_invoked.append("vision_agent")
-        await emit_status(sid, "Visionary", "Gemini 2.5 Flash is analyzing the image...")
+        await emit_status(sid, "Visionary", "Gemini 3 Flash is analyzing the image...")
         try:
             vision_result = await run_vision_agent(request.vision)
             if vision_result.status != AgentStatus.ERROR:
@@ -140,9 +140,17 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
             PricePoint(date=datetime.now().strftime("%Y-%m-%d"), price=p.price, store=p.store)
             for p in detective_result.found_prices
         ]
+        # AnalystRequest.product_name is a required str; vision may legitimately
+        # return None (low confidence) so fall back to keywords / query.
+        resolved_name = (
+            (vision_result.product_name if vision_result else None)
+            or keywords
+            or request.query
+            or "Unknown product"
+        )
         analyst_req = AnalystRequest(
             product_id=str(uuid.uuid4()),
-            product_name=vision_result.product_name if vision_result else keywords,
+            product_name=resolved_name,
             reviews=detective_result.reviews_found,
             price_history=prices
         )

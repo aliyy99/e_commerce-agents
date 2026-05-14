@@ -58,14 +58,10 @@ function buildVisionPayload(imageInput, locale = 'tr') {
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
-    return {
-      input_type: 'url',
-      image_url: trimmed,
-      locale,
-    };
+    throw new Error('Doğrudan görsel URL desteklenmiyor. Lütfen görsel yükleyin veya kameradan çekin.');
   }
 
-  throw new Error('Görsel girdisi data URL veya http(s) URL olmalıdır.');
+  throw new Error('Görsel girdisi data URL formatında olmalıdır.');
 }
 
 

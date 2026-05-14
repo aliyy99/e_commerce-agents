@@ -65,3 +65,19 @@ def raise_if_auth_error(exc: BaseException) -> None:
     """If ``exc`` is an auth failure, raise GeminiAuthError; otherwise no-op."""
     if is_auth_error(exc):
         raise GeminiAuthError(_AUTH_USER_MESSAGE) from exc
+
+
+def retry_on_non_auth_error(retry_state) -> bool:
+    """Tenacity predicate: retry only on real, non-auth exceptions.
+
+    Returning True on success (because ``isinstance(None, GeminiAuthError)``
+    is False) causes tenacity to schedule pointless retries and ultimately
+    wrap a successful call in ``RetryError``. Treat 'no exception' as 'do
+    not retry'.
+    """
+    if retry_state.outcome is None:
+        return False
+    exc = retry_state.outcome.exception()
+    if exc is None:
+        return False
+    return not isinstance(exc, GeminiAuthError)

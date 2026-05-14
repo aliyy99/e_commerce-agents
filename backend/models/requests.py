@@ -5,12 +5,11 @@ Validates all incoming data before it reaches any agent.
 from __future__ import annotations
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class ImageInputType(str, Enum):
     BASE64 = "base64"
-    URL    = "url"
 
 
 class ProductCategory(str, Enum):
@@ -26,19 +25,15 @@ class ProductCategory(str, Enum):
 class VisionRequest(BaseModel):
     """
     Payload for the Vision Agent.
-    Accepts either a raw Base64-encoded image string or a public URL.
+    Accepts a raw Base64-encoded image string from uploaded/captured images.
     """
     input_type: ImageInputType = Field(
         ...,
-        description="Choose 'base64' for uploaded files, 'url' for remote images."
+        description="Must be 'base64' for uploaded/captured images."
     )
     image_data: Optional[str] = Field(
         None,
         description="Base64-encoded image string (without data-URI prefix)."
-    )
-    image_url: Optional[HttpUrl] = Field(
-        None,
-        description="Publicly accessible URL of the product image."
     )
     locale: str = Field(default="tr", description="ISO-639 language code for the response.")
 
@@ -46,8 +41,6 @@ class VisionRequest(BaseModel):
     def check_image_source(self) -> "VisionRequest":
         if self.input_type == ImageInputType.BASE64 and not self.image_data:
             raise ValueError("image_data is required when input_type is 'base64'.")
-        if self.input_type == ImageInputType.URL and not self.image_url:
-            raise ValueError("image_url is required when input_type is 'url'.")
         return self
 
 
@@ -162,4 +155,3 @@ class CompareSiteData(BaseModel):
 class CompareRequest(BaseModel):
     products: List[CompareSiteData]
     locale: str = Field(default="tr", description="Output locale for the comparison report.")
-

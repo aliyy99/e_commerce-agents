@@ -1,11 +1,13 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║              VISION AGENT  –  Gemini 2.5 Flash              ║
+║            VISION AGENT  –  Gemini 3 Flash (Preview)         ║
 ╠══════════════════════════════════════════════════════════════╣
-║  WHY FLASH?                                                  ║
-║  ▸ Sub-second multimodal inference (target < 800 ms)         ║
-║  ▸ Native vision tokens – no separate embedding step         ║
-║  ▸ Efficient for high-throughput image-identification tasks  ║
+║  WHY FLASH 3?                                                ║
+║  ▸ Faster + cheaper than Pro for structured JSON ID calls    ║
+║  ▸ Native multimodal — no separate embedding step            ║
+║  ▸ Strong brand/variant disambiguation at lower latency      ║
+║  ▸ Pro 2.5 kept as fallback for ambiguous / low-confidence   ║
+║    images where extra reasoning budget pays off.             ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 from __future__ import annotations
@@ -16,17 +18,17 @@ import logging
 import re
 from typing import Optional
 
-import httpx
 import google.generativeai as genai
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..config import settings
-from ..models.requests import VisionRequest, ImageInputType
+from ..models.requests import VisionRequest
 from ..models.responses import VisionResponse, AgentStatus, DetectedSpec
 from ..services.gemini_client import (
     GeminiAuthError,
     configure_gemini_client,
     raise_if_auth_error,
+    retry_on_non_auth_error,
 )
 
 logger = logging.getLogger("shopsage.vision_agent")
@@ -57,6 +59,9 @@ def _parse_vision_json(raw_text: str) -> dict:
     return json.loads(text)
 
 
+# NOTE: this template uses a literal "{locale}" sentinel and is rendered with
+# str.replace — not str.format — because the JSON example contains real { }
+# braces that str.format would mis-parse as placeholders.
 _VISION_PROMPT = """
 You are a world-class product identification expert.
 Analyze the provided image and return ONLY a JSON object (no markdown, no extra text)
@@ -79,21 +84,23 @@ Respond in the language corresponding to locale: {locale}.
 """.strip()
 
 
+def _render_vision_prompt(locale: str) -> str:
+    return _VISION_PROMPT.replace("{locale}", locale)
+
+
 # ─────────────────────────────────────────────────────────────
-# Core function  (Flash model, with Pro fallback)
+# Core function  (Pro model, with secondary Pro retry)
 # ─────────────────────────────────────────────────────────────
 @retry(
     stop=stop_after_attempt(2),
     wait=wait_exponential(multiplier=1, min=1, max=4),
     reraise=True,
-    retry=lambda retry_state: not isinstance(
-        retry_state.outcome.exception(), GeminiAuthError
-    ),
+    retry=retry_on_non_auth_error,
 )
-async def _call_flash_vision(image_part: dict, locale: str) -> dict:
+async def _call_primary_vision(image_part: dict, locale: str) -> dict:
     """
     AGENT: Vision Agent
-    Calls Gemini Flash with the image part and returns parsed JSON.
+    Calls Gemini 3 Flash with the image part and returns parsed JSON.
     Uses tenacity retry with exponential back-off (max 2 attempts).
 
     Args:
@@ -104,20 +111,19 @@ async def _call_flash_vision(image_part: dict, locale: str) -> dict:
         Parsed JSON dict from the model.
 
     Raises:
-        Exception: Any network or parsing error – caller will fallback to Pro.
+        Exception: Any network or parsing error – caller will retry on Pro fallback.
     """
     configure_gemini_client()
-    # WHY FLASH: Low-latency multimodal model, ideal for real-time image
-    # identification. Processes vision tokens natively without extra embedding step.
-    flash = genai.GenerativeModel(model_name=settings.FLASH_MODEL)
-    prompt = _VISION_PROMPT.format(locale=locale)
+    # Gemini 3 Flash: fast structured-JSON product ID at lower cost than Pro.
+    primary = genai.GenerativeModel(model_name=settings.VISION_MODEL)
+    prompt = _render_vision_prompt(locale)
 
     try:
-        response = flash.generate_content(
+        response = primary.generate_content(
             [prompt, image_part],
             generation_config=genai.GenerationConfig(
                 temperature=0.1,       # Near-deterministic for factual extraction
-                max_output_tokens=512,
+                max_output_tokens=1024,
                 response_mime_type="application/json",
             ),
         )
@@ -130,22 +136,22 @@ async def _call_flash_vision(image_part: dict, locale: str) -> dict:
 async def _call_pro_vision_fallback(image_part: dict, locale: str) -> dict:
     """
     AGENT: Vision Agent – Pro Fallback
-    Called when Flash fails (timeout, parsing error, low confidence).
-    Gemini Pro is slower but more accurate on ambiguous images.
+    Called when the primary call fails (timeout, parsing error, low confidence).
+    Retries on the Pro model with a higher token budget for ambiguous images.
 
     Args:
-        image_part: Same image dict passed to Flash.
+        image_part: Same image dict passed to the primary call.
         locale:     Language for the model response.
 
     Returns:
         Parsed JSON dict from the model.
     """
-    logger.warning("Vision fallback triggered → switching to %s", settings.PRO_MODEL)
+    logger.warning("Vision fallback triggered → retrying on %s", settings.VISION_FALLBACK_MODEL)
     configure_gemini_client()
-    # WHY PRO FALLBACK: Deeper image reasoning when Flash confidence < 0.4
-    # or when Flash returns malformed JSON.
-    pro = genai.GenerativeModel(model_name=settings.PRO_MODEL)
-    prompt = _VISION_PROMPT.format(locale=locale)
+    # WHY PRO FALLBACK: Larger output budget and a fresh request when the
+    # Flash 3 primary returns low confidence or malformed JSON.
+    pro = genai.GenerativeModel(model_name=settings.VISION_FALLBACK_MODEL)
+    prompt = _render_vision_prompt(locale)
 
     try:
         response = pro.generate_content(
@@ -162,31 +168,20 @@ async def _call_pro_vision_fallback(image_part: dict, locale: str) -> dict:
     return _parse_vision_json(getattr(response, "text", "") or "")
 
 
-async def _fetch_image_bytes(url: str) -> bytes:
-    """
-    AGENT: Vision Agent – Helper
-    Downloads image bytes from a remote URL asynchronously.
-    """
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(str(url))
-        resp.raise_for_status()
-        return resp.content
-
-
 # ─────────────────────────────────────────────────────────────
 # Public entry-point
 # ─────────────────────────────────────────────────────────────
 async def run_vision_agent(request: VisionRequest) -> VisionResponse:
     """
-    AGENT: Vision Agent  (Gemini 2.5 Flash)
-    ─────────────────────────────────────
-    Main entry-point. Accepts a VisionRequest (Base64 or URL),
-    prepares the image part, calls Flash, falls back to Pro if needed,
-    and returns a fully validated VisionResponse.
+    AGENT: Vision Agent  (Gemini 3 Flash → Gemini 2.5 Pro fallback)
+    ───────────────────────────────────────────────────────────────
+    Main entry-point. Accepts a VisionRequest (Base64),
+    prepares the image part, calls Gemini 3 Flash as the primary identifier,
+    and falls back to Gemini 2.5 Pro when needed.
 
     Fallback logic:
-      Flash fails / returns confidence < 0.4  →  Pro is tried once.
-      Pro also fails                           →  Returns ERROR status.
+      Primary call fails / confidence < 0.4    →  Pro fallback is tried once.
+      Pro fallback also fails                  →  Returns ERROR status.
 
     Args:
         request: Validated VisionRequest from the route handler.
@@ -197,40 +192,37 @@ async def run_vision_agent(request: VisionRequest) -> VisionResponse:
     logger.info("VisionAgent → starting (input_type=%s)", request.input_type)
 
     # ── 1. Prepare image bytes ─────────────────────────────
-    if request.input_type == ImageInputType.BASE64:
-        image_bytes = base64.b64decode(request.image_data)
-    else:
-        image_bytes = await _fetch_image_bytes(str(request.image_url))
+    image_bytes = base64.b64decode(request.image_data)
 
     image_part = {
         "mime_type": "image/jpeg",
         "data": base64.b64encode(image_bytes).decode("utf-8"),
     }
 
-    # ── 2. Try Flash first ─────────────────────────────────
-    model_used = settings.FLASH_MODEL
+    # ── 2. Try primary Gemini 3 Flash call first ──────────
+    model_used = settings.VISION_MODEL
     status     = AgentStatus.SUCCESS
     raw_text: Optional[str] = None
 
     try:
-        data = await _call_flash_vision(image_part, request.locale)
+        data = await _call_primary_vision(image_part, request.locale)
 
-        # Trigger fallback if Flash is not confident enough
+        # Trigger fallback if the model is not confident enough
         if (data.get("confidence") or 1.0) < 0.4:
-            raise ValueError(f"Flash confidence too low: {data.get('confidence')}")
+            raise ValueError(f"Primary confidence too low: {data.get('confidence')}")
 
     except GeminiAuthError as auth_err:
-        # Auth errors won't recover by retrying Pro — both use the same key.
+        # Auth errors won't recover by retrying — same API key.
         logger.error("VisionAgent auth error: %s", auth_err)
         return VisionResponse(
             status=AgentStatus.ERROR,
             error_detail=str(auth_err),
         )
-    except Exception as flash_err:
-        logger.warning("Flash vision failed (%s) → trying Pro fallback", flash_err)
+    except Exception as primary_err:
+        logger.warning("Primary vision failed (%s) → trying Pro fallback", primary_err)
         try:
             data       = await _call_pro_vision_fallback(image_part, request.locale)
-            model_used = settings.PRO_MODEL
+            model_used = settings.VISION_FALLBACK_MODEL
             status     = AgentStatus.FALLBACK
         except GeminiAuthError as auth_err:
             logger.error("VisionAgent auth error during Pro fallback: %s", auth_err)
@@ -242,7 +234,7 @@ async def run_vision_agent(request: VisionRequest) -> VisionResponse:
             logger.error("Pro fallback also failed: %s", pro_err)
             return VisionResponse(
                 status=AgentStatus.ERROR,
-                error_detail=f"Flash: {flash_err} | Pro: {pro_err}",
+                error_detail=f"Primary: {primary_err} | Pro fallback: {pro_err}",
             )
 
     # ── 3. Parse & return ──────────────────────────────────

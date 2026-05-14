@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import statistics
 from typing import List
 
@@ -30,6 +31,7 @@ from ..services.gemini_client import (
     GeminiAuthError,
     configure_gemini_client,
     raise_if_auth_error,
+    retry_on_non_auth_error,
 )
 
 logger = logging.getLogger("shopsage.analyst_agent")
@@ -120,9 +122,7 @@ def _compute_price_trend(price_history: List[PricePoint]) -> PriceTrend:
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
     reraise=True,
-    retry=lambda retry_state: not isinstance(
-        retry_state.outcome.exception(), GeminiAuthError
-    ),
+    retry=retry_on_non_auth_error,
 )
 async def _call_pro_analyst(
     product_name: str,
@@ -178,7 +178,18 @@ async def _call_pro_analyst(
     except Exception as err:
         raise_if_auth_error(err)
         raise
-    return json.loads(response.text.strip())
+    raw_text = (getattr(response, "text", "") or "").strip()
+    if not raw_text:
+        raise ValueError("Analyst model returned empty text.")
+    # Tolerate markdown fencing even though the prompt forbids it.
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL | re.IGNORECASE)
+    if fenced:
+        return json.loads(fenced.group(1))
+    first = raw_text.find("{")
+    last = raw_text.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        return json.loads(raw_text[first : last + 1])
+    return json.loads(raw_text)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -196,8 +207,8 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
       • Buy / Wait / Avoid recommendation
       • Plain-language AI summary and Final Strategy
 
-    This agent always uses Gemini Pro — there is no Flash equivalent
-    for deep multi-step analysis over thousands of review tokens.
+    This agent always uses Gemini 2.5 Pro — deep multi-step analysis
+    over thousands of review tokens requires Pro's long-context reasoning.
 
     Args:
         request: Validated AnalystRequest.

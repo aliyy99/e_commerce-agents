@@ -4,6 +4,8 @@ import { MessageSquare, Send, X, Bot, User, Loader2, Sparkles } from 'lucide-rea
 import ReactMarkdown from 'react-markdown';
 import { chatWithAssistant } from '../services/api';
 
+const MAX_INPUT_HEIGHT = 120;
+
 const ChatWidget = ({ contextProduct }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -14,6 +16,7 @@ const ChatWidget = ({ contextProduct }) => {
   const messagesEndRef = useRef(null);
   const lastAssistantRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const inputRef = useRef(null);
   const prevMsgCountRef = useRef(messages.length);
 
   useEffect(() => {
@@ -38,6 +41,15 @@ const ChatWidget = ({ contextProduct }) => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
+
+  useEffect(() => {
+    if (!inputRef.current) return;
+    inputRef.current.style.height = '0px';
+    const nextHeight = Math.min(inputRef.current.scrollHeight, MAX_INPUT_HEIGHT);
+    inputRef.current.style.height = `${nextHeight}px`;
+    inputRef.current.style.overflowY =
+      inputRef.current.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
+  }, [inputValue, isOpen]);
 
   // When product context changes, send an informational message
   useEffect(() => {
@@ -142,7 +154,7 @@ const ChatWidget = ({ contextProduct }) => {
                   }`}>
                     {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
-                  <div className={`max-w-[280px] p-3 text-[13px] leading-relaxed shadow-sm border ${
+                  <div className={`max-w-[280px] p-3 text-[13px] leading-relaxed shadow-sm border break-words ${
                     msg.role === 'user' 
                       ? 'bg-primary text-white rounded-2xl rounded-tr-sm border-primary/50' 
                       : 'bg-white text-slate-700 rounded-2xl rounded-tl-sm border-slate-100'
@@ -185,14 +197,16 @@ const ChatWidget = ({ contextProduct }) => {
                   <span className="text-[10px] text-primary font-bold truncate">📦 {contextProduct.name}</span>
                 </div>
               )}
-              <div className="relative flex items-center gap-2">
-                <input 
-                  type="text" 
+              <div className="relative flex items-end gap-2">
+                <textarea
+                  ref={inputRef}
+                  rows={1}
+                  wrap="soft"
                   placeholder="Ask anything about the products..." 
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary/50 transition-colors"
+                  className="flex-1 min-w-0 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary/50 transition-colors resize-none overflow-y-hidden leading-relaxed box-border"
                   disabled={isLoading}
                 />
                 <button 

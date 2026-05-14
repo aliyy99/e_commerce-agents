@@ -12,9 +12,9 @@ import { Cpu, Search, BarChart3, Sparkles } from 'lucide-react';
  */
 
 const stages = [
-  { id: 'Visionary', label: 'Vision Agent', sub: 'Gemini Flash', icon: Cpu, color: 'text-blue-500 bg-blue-500' },
+  { id: 'Visionary', label: 'Vision Agent', sub: 'Gemini 2.5 Pro', icon: Cpu, color: 'text-blue-500 bg-blue-500' },
   { id: 'Detective', label: 'Detective Agent', sub: 'Search Engine', icon: Search, color: 'text-amber-500 bg-amber-500' },
-  { id: 'Analyst', label: 'Analyst Agent', sub: 'Gemini Pro', icon: BarChart3, color: 'text-violet-500 bg-violet-500' },
+  { id: 'Analyst', label: 'Analyst Agent', sub: 'Gemini 2.5 Pro', icon: BarChart3, color: 'text-violet-500 bg-violet-500' },
   { id: 'Decision', label: 'Final Decision', sub: 'Recommendation', icon: Sparkles, color: 'text-primary bg-primary' },
 ];
 

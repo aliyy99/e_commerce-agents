@@ -18,6 +18,7 @@ from ..services.gemini_client import (
     GeminiAuthError,
     configure_gemini_client,
     raise_if_auth_error,
+    retry_on_non_auth_error,
 )
 
 logger = logging.getLogger("shopsage.compare_agent")
@@ -417,9 +418,7 @@ async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, A
     stop=stop_after_attempt(2),
     wait=wait_exponential(multiplier=1, min=2, max=8),
     reraise=True,
-    retry=lambda retry_state: not isinstance(
-        retry_state.outcome.exception(), GeminiAuthError
-    ),
+    retry=retry_on_non_auth_error,
 )
 def _generate_report(model_name: str, prompt: str, locale: str) -> str:
     configure_gemini_client()

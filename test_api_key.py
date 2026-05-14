@@ -20,7 +20,7 @@ else:
             if 'generateContent' in m.supported_generation_methods:
                 print(f"- {m.name}")
         
-        model_name = 'models/gemini-1.5-flash'
+        model_name = 'models/gemini-2.5-pro'
         print(f"Deneme yapılıyor: {model_name}")
         model = genai.GenerativeModel(model_name)
         response = model.generate_content("Hello, are you active?")
