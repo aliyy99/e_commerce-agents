@@ -22,12 +22,13 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from ..config import settings
 from ..models.requests import VisionRequest, ImageInputType
 from ..models.responses import VisionResponse, AgentStatus, DetectedSpec
-from ..services.gemini_client import configure_gemini_client
+from ..services.gemini_client import (
+    GeminiAuthError,
+    configure_gemini_client,
+    raise_if_auth_error,
+)
 
 logger = logging.getLogger("shopsage.vision_agent")
-
-# ── Configure the Google AI SDK once at import time ───────────
-configure_gemini_client()
 
 # ─────────────────────────────────────────────────────────────
 # Prompt template
@@ -61,6 +62,9 @@ Respond in the language corresponding to locale: {locale}.
     stop=stop_after_attempt(2),
     wait=wait_exponential(multiplier=1, min=1, max=4),
     reraise=True,
+    retry=lambda retry_state: not isinstance(
+        retry_state.outcome.exception(), GeminiAuthError
+    ),
 )
 async def _call_flash_vision(image_part: dict, locale: str) -> dict:
     """
@@ -78,18 +82,23 @@ async def _call_flash_vision(image_part: dict, locale: str) -> dict:
     Raises:
         Exception: Any network or parsing error – caller will fallback to Pro.
     """
+    configure_gemini_client()
     # WHY FLASH: Low-latency multimodal model, ideal for real-time image
     # identification. Processes vision tokens natively without extra embedding step.
     flash = genai.GenerativeModel(model_name=settings.FLASH_MODEL)
     prompt = _VISION_PROMPT.format(locale=locale)
 
-    response = flash.generate_content(
-        [prompt, image_part],
-        generation_config=genai.GenerationConfig(
-            temperature=0.1,       # Near-deterministic for factual extraction
-            max_output_tokens=512,
-        ),
-    )
+    try:
+        response = flash.generate_content(
+            [prompt, image_part],
+            generation_config=genai.GenerationConfig(
+                temperature=0.1,       # Near-deterministic for factual extraction
+                max_output_tokens=512,
+            ),
+        )
+    except Exception as err:
+        raise_if_auth_error(err)
+        raise
     raw = response.text.strip()
     return json.loads(raw)
 
@@ -108,15 +117,20 @@ async def _call_pro_vision_fallback(image_part: dict, locale: str) -> dict:
         Parsed JSON dict from the model.
     """
     logger.warning("Vision fallback triggered → switching to %s", settings.PRO_MODEL)
+    configure_gemini_client()
     # WHY PRO FALLBACK: Deeper image reasoning when Flash confidence < 0.4
     # or when Flash returns malformed JSON.
     pro = genai.GenerativeModel(model_name=settings.PRO_MODEL)
     prompt = _VISION_PROMPT.format(locale=locale)
 
-    response = pro.generate_content(
-        [prompt, image_part],
-        generation_config=genai.GenerationConfig(temperature=0.1, max_output_tokens=1024),
-    )
+    try:
+        response = pro.generate_content(
+            [prompt, image_part],
+            generation_config=genai.GenerationConfig(temperature=0.1, max_output_tokens=1024),
+        )
+    except Exception as err:
+        raise_if_auth_error(err)
+        raise
     return json.loads(response.text.strip())
 
 
@@ -177,12 +191,25 @@ async def run_vision_agent(request: VisionRequest) -> VisionResponse:
         if (data.get("confidence") or 1.0) < 0.4:
             raise ValueError(f"Flash confidence too low: {data.get('confidence')}")
 
+    except GeminiAuthError as auth_err:
+        # Auth errors won't recover by retrying Pro — both use the same key.
+        logger.error("VisionAgent auth error: %s", auth_err)
+        return VisionResponse(
+            status=AgentStatus.ERROR,
+            error_detail=str(auth_err),
+        )
     except Exception as flash_err:
         logger.warning("Flash vision failed (%s) → trying Pro fallback", flash_err)
         try:
             data       = await _call_pro_vision_fallback(image_part, request.locale)
             model_used = settings.PRO_MODEL
             status     = AgentStatus.FALLBACK
+        except GeminiAuthError as auth_err:
+            logger.error("VisionAgent auth error during Pro fallback: %s", auth_err)
+            return VisionResponse(
+                status=AgentStatus.ERROR,
+                error_detail=str(auth_err),
+            )
         except Exception as pro_err:
             logger.error("Pro fallback also failed: %s", pro_err)
             return VisionResponse(

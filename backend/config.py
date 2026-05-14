@@ -8,7 +8,18 @@ from dotenv import load_dotenv
 
 # .env dosyasını backend klasöründen yükle (çalıştırma dizininden bağımsız)
 _BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(_BASE_DIR / ".env")
+_ENV_PATH = _BASE_DIR / ".env"
+load_dotenv(_ENV_PATH)
+
+
+def reload_env() -> None:
+    """Re-read backend/.env into os.environ, overriding existing values.
+
+    Allows operators to rotate keys (e.g. GEMINI_API_KEY) without restarting
+    the backend — callers that resolve env vars at request-time will see the
+    new value on the next call.
+    """
+    load_dotenv(_ENV_PATH, override=True)
 
 class Settings:
     # ── Google AI ──────────────────────────────
@@ -32,7 +43,14 @@ class Settings:
 settings = Settings()
 
 
-def get_gemini_api_key() -> str:
+def get_gemini_api_key(*, reload: bool = False) -> str:
+    """Return the current GEMINI_API_KEY, optionally reloading .env first.
+
+    When ``reload=True`` we re-read backend/.env with override=True so a
+    freshly rotated key takes effect without a server restart.
+    """
+    if reload:
+        reload_env()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("Eksik ortam değişkeni: GEMINI_API_KEY. Lütfen backend/.env dosyasını doldurun.")

@@ -24,10 +24,13 @@ from ..config import settings
 from ..db import save_generated_image
 from ..models.requests import StyleRequest, ProductCategory
 from ..models.responses import StyleResponse, AgentStatus
-from ..services.gemini_client import configure_gemini_client
+from ..services.gemini_client import (
+    GeminiAuthError,
+    configure_gemini_client,
+    raise_if_auth_error,
+)
 
 logger = logging.getLogger("shopsage.visualizer_agent")
-configure_gemini_client()
 
 # ─────────────────────────────────────────────────────────────
 # Prompt templates per category
@@ -89,15 +92,20 @@ async def run_visualizer_agent(request: StyleRequest) -> StyleResponse:
     logger.debug("Visualizer prompt: %s", prompt[:120])
 
     try:
+        configure_gemini_client()
         # WHY IMAGEN 3: Photorealistic synthesis with spatial awareness.
         # The model understands fashion styling and interior design natively.
         imagen = genai.ImageGenerationModel(settings.IMAGE_MODEL)
-        result = imagen.generate_images(
-            prompt=prompt,
-            number_of_images=1,
-            safety_filter_level="block_only_high",
-            person_generation="dont_allow",
-        )
+        try:
+            result = imagen.generate_images(
+                prompt=prompt,
+                number_of_images=1,
+                safety_filter_level="block_only_high",
+                person_generation="dont_allow",
+            )
+        except Exception as err:
+            raise_if_auth_error(err)
+            raise
 
         image_bytes: bytes = result.images[0]._image_bytes
 
@@ -120,6 +128,12 @@ async def run_visualizer_agent(request: StyleRequest) -> StyleResponse:
                 error_detail=f"Storage upload failed: {upload_err}",
             )
 
+    except GeminiAuthError as auth_err:
+        logger.error("VisualizerAgent auth error: %s", auth_err)
+        return StyleResponse(
+            status=AgentStatus.ERROR,
+            error_detail=str(auth_err),
+        )
     except Exception as gen_err:
         logger.error("VisualizerAgent generation failed: %s", gen_err)
         return StyleResponse(

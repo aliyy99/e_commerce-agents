@@ -6,7 +6,11 @@ import google.generativeai as genai
 
 from ..config import settings
 from ..models.requests import ChatRequest
-from .gemini_client import configure_gemini_client
+from .gemini_client import (
+    GeminiAuthError,
+    configure_gemini_client,
+    raise_if_auth_error,
+)
 
 logger = logging.getLogger("shopsage.services.gemini_proxy")
 
@@ -58,6 +62,12 @@ def generate_chat_reply(request: ChatRequest) -> str:
                 return reply_text
             raise ValueError(f"Gemini boş yanıt döndü (model={model_name}).")
         except Exception as exc:
+            # Auth errors won't recover by trying another model — fail fast.
+            try:
+                raise_if_auth_error(exc)
+            except GeminiAuthError as auth_err:
+                logger.error("Chat auth error: %s", auth_err)
+                raise RuntimeError(str(auth_err)) from auth_err
             logger.warning("Chat model failed (model=%s): %s", model_name, exc)
             last_error = exc
 

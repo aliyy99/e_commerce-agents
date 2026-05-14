@@ -26,10 +26,13 @@ from ..models.responses import (
     AnalystResponse, AgentStatus,
     BuyStrategy, ReviewInsight, PriceTrend,
 )
-from ..services.gemini_client import configure_gemini_client
+from ..services.gemini_client import (
+    GeminiAuthError,
+    configure_gemini_client,
+    raise_if_auth_error,
+)
 
 logger = logging.getLogger("shopsage.analyst_agent")
-configure_gemini_client()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -117,6 +120,9 @@ def _compute_price_trend(price_history: List[PricePoint]) -> PriceTrend:
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
     reraise=True,
+    retry=lambda retry_state: not isinstance(
+        retry_state.outcome.exception(), GeminiAuthError
+    ),
 )
 async def _call_pro_analyst(
     product_name: str,
@@ -149,6 +155,7 @@ async def _call_pro_analyst(
         f"{p.date} | {p.store} | ${p.price:.2f}" for p in price_history
     )
 
+    configure_gemini_client()
     # WHY PRO: Complex reasoning over long-context inputs (reviews + price trend)
     pro = genai.GenerativeModel(
         model_name=settings.PRO_MODEL,
@@ -160,13 +167,17 @@ async def _call_pro_analyst(
         reviews_block=reviews_block,
         price_history_block=price_block,
     )
-    response = pro.generate_content(
-        prompt,
-        generation_config=genai.GenerationConfig(
-            temperature=0.2,        # Low temp for deterministic analysis
-            max_output_tokens=2048, # Enough for detailed JSON output
-        ),
-    )
+    try:
+        response = pro.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.2,        # Low temp for deterministic analysis
+                max_output_tokens=2048, # Enough for detailed JSON output
+            ),
+        )
+    except Exception as err:
+        raise_if_auth_error(err)
+        raise
     return json.loads(response.text.strip())
 
 

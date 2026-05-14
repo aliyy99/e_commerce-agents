@@ -14,10 +14,13 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..config import settings
 from ..models.requests import CompareRequest, CompareSiteData
-from ..services.gemini_client import configure_gemini_client
+from ..services.gemini_client import (
+    GeminiAuthError,
+    configure_gemini_client,
+    raise_if_auth_error,
+)
 
 logger = logging.getLogger("shopsage.compare_agent")
-configure_gemini_client()
 
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -414,19 +417,27 @@ async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, A
     stop=stop_after_attempt(2),
     wait=wait_exponential(multiplier=1, min=2, max=8),
     reraise=True,
+    retry=lambda retry_state: not isinstance(
+        retry_state.outcome.exception(), GeminiAuthError
+    ),
 )
 def _generate_report(model_name: str, prompt: str, locale: str) -> str:
+    configure_gemini_client()
     model = genai.GenerativeModel(
         model_name=model_name,
         system_instruction=f"{_COMPARE_SYSTEM}\nResponse locale: {locale}",
     )
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.GenerationConfig(
-            temperature=0.2,
-            max_output_tokens=3072,
-        ),
-    )
+    try:
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.2,
+                max_output_tokens=3072,
+            ),
+        )
+    except Exception as err:
+        raise_if_auth_error(err)
+        raise
     text = (response.text or "").strip()
     if not text:
         raise ValueError(f"Gemini returned an empty report (model={model_name}).")
@@ -463,6 +474,10 @@ async def run_compare_agent(request: CompareRequest) -> str:
             if model_name != settings.FLASH_MODEL:
                 logger.warning("CompareAgent -> fallback model used: %s", model_name)
             return report
+        except GeminiAuthError as err:
+            # Auth errors won't recover by trying the next model — fail fast.
+            logger.error("CompareAgent auth error: %s", err)
+            raise RuntimeError(str(err)) from err
         except Exception as err:
             logger.warning("CompareAgent model failed (%s): %s", model_name, err)
             last_error = err
