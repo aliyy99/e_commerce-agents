@@ -3,6 +3,8 @@ export const sampleProducts = [
   {
     "id": 1,
     "name": "Samsung Galaxy S25 Ultra 512 GB 12 GB Ram",
+    "brand": "Samsung",
+    "nameTemplate": "Samsung Galaxy S25 Ultra {Storage} {RAM} Ram",
     "images": [
       "https://cdn.dsmcdn.com/ty1626/product/media/images/prod/PIM/20250121/07/17ba277b-3bea-4c35-9aef-2d9f08b02ce9/1_org_zoom.jpg",
       "https://cdn.dsmcdn.com/ty1733/product/media/images/prod/PIM/20250822/08/6d6185f3-0ed9-4818-b746-5257d1614ac9/1_org_zoom.jpg",
@@ -21,6 +23,25 @@ export const sampleProducts = [
       { "label": "OS", "value": "Android 15, One UI 7.1" },
       { "label": "Connectivity", "value": "Wi-Fi 7, Bluetooth 5.4, 5G, USB Type-C 3.2" },
       { "label": "Durability", "value": "Titanium Frame, IP68 Water/Dust Resistant" }
+    ],
+    "variants": [
+      {
+        "label": "Storage",
+        "specLabel": "Storage",
+        "options": [
+          { "value": "256 GB UFS 4.0", "shortValue": "256 GB", "priceDelta": -10000 },
+          { "value": "512 GB UFS 4.0", "shortValue": "512 GB", "priceDelta": 0, "isDefault": true },
+          { "value": "1 TB UFS 4.0",   "shortValue": "1 TB",   "priceDelta": 15000 }
+        ]
+      },
+      {
+        "label": "RAM",
+        "specLabel": "RAM",
+        "options": [
+          { "value": "12 GB LPDDR5X", "shortValue": "12 GB", "priceDelta": 0, "isDefault": true },
+          { "value": "16 GB LPDDR5X", "shortValue": "16 GB", "priceDelta": 5000 }
+        ]
+      }
     ],
     "aiSummary": "The industry's most advanced AI features and camera hardware. Price trend is stable.",
     "strategy": "WAIT",
@@ -57,6 +78,8 @@ export const sampleProducts = [
   {
     "id": 2,
     "name": "Samsung Galaxy S24 256 GB 8 GB Ram",
+    "brand": "Samsung",
+    "nameTemplate": "Samsung Galaxy S24 {Storage} {RAM} Ram",
     "images": [
       "https://cdn.dsmcdn.com/ty1117/product/media/images/prod/PIM/20240103/08/207429ef-ff0a-4513-8f18-cb0a4b3a09cd/1_org_zoom.jpg",
       "https://cdn.dsmcdn.com/ty1118/product/media/images/prod/PIM/20240103/08/3122bae7-3778-43e9-a64f-7029ebc057ab/1_org_zoom.jpg",
@@ -76,6 +99,25 @@ export const sampleProducts = [
       { "label": "Connectivity", "value": "Wi-Fi 6E, Bluetooth 5.3, 5G" },
       { "label": "Durability", "value": "Armor Aluminum 2, IP68" }
     ],
+    "variants": [
+      {
+        "label": "Storage",
+        "specLabel": "Storage",
+        "options": [
+          { "value": "128 GB", "shortValue": "128 GB", "priceDelta": -4000 },
+          { "value": "256 GB", "shortValue": "256 GB", "priceDelta": 0, "isDefault": true },
+          { "value": "512 GB", "shortValue": "512 GB", "priceDelta": 6000 }
+        ]
+      },
+      {
+        "label": "RAM",
+        "specLabel": "RAM",
+        "options": [
+          { "value": "8 GB",  "shortValue": "8 GB",  "priceDelta": 0, "isDefault": true },
+          { "value": "12 GB", "shortValue": "12 GB", "priceDelta": 3500 }
+        ]
+      }
+    ],
     "aiSummary": "An ideal compact flagship in terms of price/performance.",
     "strategy": "BUY",
     "stores": [
@@ -93,6 +135,8 @@ export const sampleProducts = [
   {
     "id": 3,
     "name": "Apple Macbook Air M4 16 GB 512 GB SSD macOS 13\"",
+    "brand": "Apple",
+    "nameTemplate": "Apple Macbook Air M4 {RAM} {Storage} SSD macOS 13\"",
     "images": [
       "https://cdn.dsmcdn.com/ty1647/product/media/images/prod/PIM/20250307/11/c6e15bb9-e893-4739-86ef-f57050329652/1_org_zoom.jpg",
       "https://cdn.dsmcdn.com/ty1648/product/media/images/prod/PIM/20250307/08/ba658490-9f4b-4838-b730-3a3bd191394a/1_org_zoom.jpg",
@@ -112,6 +156,27 @@ export const sampleProducts = [
       { "label": "Ports", "value": "2x Thunderbolt / USB 4, MagSafe 3, 3.5mm Headphone Jack" },
       { "label": "Camera & Audio", "value": "1080p FaceTime HD, 4-speaker sound system" },
       { "label": "Weight", "value": "1.24 kg" }
+    ],
+    "variants": [
+      {
+        "label": "RAM",
+        "specLabel": "RAM",
+        "options": [
+          { "value": "16 GB Unified Memory", "shortValue": "16 GB", "priceDelta": 0, "isDefault": true },
+          { "value": "24 GB Unified Memory", "shortValue": "24 GB", "priceDelta": 8000 },
+          { "value": "32 GB Unified Memory", "shortValue": "32 GB", "priceDelta": 16000 }
+        ]
+      },
+      {
+        "label": "Storage",
+        "specLabel": "Storage",
+        "options": [
+          { "value": "256 GB PCIe SSD", "shortValue": "256 GB", "priceDelta": -7000 },
+          { "value": "512 GB PCIe SSD", "shortValue": "512 GB", "priceDelta": 0, "isDefault": true },
+          { "value": "1 TB PCIe SSD",   "shortValue": "1 TB",   "priceDelta": 9000 },
+          { "value": "2 TB PCIe SSD",   "shortValue": "2 TB",   "priceDelta": 22000 }
+        ]
+      }
     ],
     "aiSummary": "Ideal choice for professionals wanting long battery life and high performance.",
     "strategy": "BUY",
@@ -139,6 +204,8 @@ export const sampleProducts = [
   {
     "id": 4,
     "name": "Apple iPhone 15 128 GB Mavi",
+    "brand": "Apple",
+    "nameTemplate": "Apple iPhone 15 {Storage} {Color}",
     "images": [
       "https://cdn.dsmcdn.com/ty1609/prod/QC/20241202/09/d1662cea-116d-3e2c-9a7a-66c6204ea0a3/1_org_zoom.jpg",
       "https://cdn.dsmcdn.com/ty1608/prod/QC/20241202/09/120468ea-6a40-36e9-b78c-92f61a70fc57/1_org_zoom.jpg",
@@ -157,6 +224,28 @@ export const sampleProducts = [
       { "label": "Connection", "value": "USB Type-C 2.0, DisplayPort" },
       { "label": "Durability", "value": "Ceramic Shield, IP68 Water/Dust Resistant" },
       { "label": "Color", "value": "Blue" }
+    ],
+    "variants": [
+      {
+        "label": "Storage",
+        "specLabel": "Storage",
+        "options": [
+          { "value": "128 GB NVMe", "shortValue": "128 GB", "priceDelta": 0, "isDefault": true },
+          { "value": "256 GB NVMe", "shortValue": "256 GB", "priceDelta": 6000 },
+          { "value": "512 GB NVMe", "shortValue": "512 GB", "priceDelta": 14000 }
+        ]
+      },
+      {
+        "label": "Color",
+        "specLabel": "Color",
+        "options": [
+          { "value": "Blue",   "shortValue": "Mavi",   "priceDelta": 0, "isDefault": true },
+          { "value": "Pink",   "shortValue": "Pembe",  "priceDelta": 0 },
+          { "value": "Yellow", "shortValue": "Sarı",   "priceDelta": 0 },
+          { "value": "Black",  "shortValue": "Siyah",  "priceDelta": 0 },
+          { "value": "Green",  "shortValue": "Yeşil",  "priceDelta": 0 }
+        ]
+      }
     ],
     "aiSummary": "Price has stabilized, making it a logical choice to upgrade from older generations.",
     "strategy": "WAIT",
@@ -184,6 +273,8 @@ export const sampleProducts = [
   {
     "id": 5,
     "name": "Samsung Galaxy Tab S11 Ultra 12GB 256GB SM-X930",
+    "brand": "Samsung",
+    "nameTemplate": "Samsung Galaxy Tab S11 Ultra {RAM} {Storage} SM-X930",
     "images": [
       "https://cdn.dsmcdn.com/ty1744/product/media/images/prod/PIM/20250903/14/b619e051-6cd3-4a25-91f6-7310927114d3/1_org_zoom.jpg",
       "https://cdn.dsmcdn.com/ty1744/product/media/images/prod/PIM/20250903/14/73445da9-58d3-40c6-915b-41239a5ade72/1_org_zoom.jpg",
@@ -204,6 +295,25 @@ export const sampleProducts = [
       { "label": "Audio", "value": "Quad Speakers tuned by AKG" },
       { "label": "Model", "value": "SM-X930 (Wi-Fi 7)" }
     ],
+    "variants": [
+      {
+        "label": "RAM",
+        "specLabel": "RAM",
+        "options": [
+          { "value": "12 GB", "shortValue": "12GB", "priceDelta": 0, "isDefault": true },
+          { "value": "16 GB", "shortValue": "16GB", "priceDelta": 4500 }
+        ]
+      },
+      {
+        "label": "Storage",
+        "specLabel": "Storage",
+        "options": [
+          { "value": "256 GB UFS 4.0 (microSDXC expandable)", "shortValue": "256GB", "priceDelta": 0, "isDefault": true },
+          { "value": "512 GB UFS 4.0 (microSDXC expandable)", "shortValue": "512GB", "priceDelta": 7000 },
+          { "value": "1 TB UFS 4.0 (microSDXC expandable)",   "shortValue": "1TB",   "priceDelta": 16000 }
+        ]
+      }
+    ],
     "aiSummary": "Offers an unrivaled screen and hardware for productivity and media consumption.",
     "strategy": "AVOID",
     "stores": [
@@ -219,3 +329,36 @@ export const sampleProducts = [
     ]
   }
 ];
+
+// ──────────────────────────────────────────────────────────────
+// Brand → known models (used for image-search disambiguation)
+// ──────────────────────────────────────────────────────────────
+export const brandModels = {
+  Apple: [
+    'MacBook Pro 14" M3', 'MacBook Pro 16" M3 Max', 'MacBook Air 15" M3',
+    'Apple Macbook Air M4 16 GB 512 GB SSD macOS 13"',
+    'Apple iPhone 15 128 GB Mavi', 'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15', 'iPhone 14',
+    'Apple Watch Series 9', 'Apple Watch Ultra 2', 'Apple Watch SE',
+    'AirPods Pro 2', 'AirPods Max', 'iPad Pro M4', 'iPad Air M2'
+  ],
+  Samsung: [
+    'Samsung Galaxy S25 Ultra 512 GB 12 GB Ram',
+    'Samsung Galaxy S24 256 GB 8 GB Ram',
+    'Samsung Galaxy S24 Ultra', 'Samsung Galaxy S24+', 'Samsung Galaxy S23 FE',
+    'Samsung Galaxy Z Fold 5', 'Samsung Galaxy Z Flip 5',
+    'Samsung Galaxy Tab S11 Ultra 12GB 256GB SM-X930',
+    'Samsung Galaxy Tab S9', 'Samsung Galaxy Buds2 Pro'
+  ],
+  Sony: [
+    'Sony WH-1000XM5', 'Sony WH-1000XM4', 'Sony WF-1000XM5',
+    'Sony PlayStation 5', 'Sony PlayStation 5 Slim', 'Sony PlayStation Portal'
+  ],
+  Dyson: [
+    'Dyson V15 Detect', 'Dyson V12 Detect Slim',
+    'Dyson Airwrap', 'Dyson Supersonic', 'Dyson Purifier Cool'
+  ],
+  Microsoft: ['Xbox Series X'],
+  Nintendo: ['Nintendo Switch OLED'],
+  LG: ['LG OLED C4 TV'],
+  Bose: ['Bose QuietComfort Ultra']
+};

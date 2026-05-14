@@ -6,9 +6,12 @@ import PipelineLoader from './components/PipelineLoader';
 import ProductCard from './components/ProductCard';
 import ChatWidget from './components/ChatWidget';
 import Campaigns from './components/Campaigns';
+import VisionMatchModal from './components/VisionMatchModal';
 import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { sampleProducts } from './data/products';
+import { sampleProducts, brandModels } from './data/products';
+import { analyzeImage } from './services/api';
+import { matchProductFromVision, brandKeyFromVision } from './utils/productMatch';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -29,6 +32,10 @@ function App() {
   const [tracked, setTracked] = useState([]);
   const [analysisReports, setAnalysisReports] = useState({});
 
+  // Vision (image-search) State
+  const [visionDisambiguation, setVisionDisambiguation] = useState(null); // { brand, suggestedModels, detected }
+  const [visionError, setVisionError] = useState(null);
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -39,23 +46,83 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  const handleSearch = useCallback(() => {
+  const finalizeQuery = useCallback((query, { autoSelect = true } = {}) => {
+    setSearchQuery(query);
+    setIsSearching(true);
+    setShowSuggestions(false);
+    if (autoSelect) {
+      const q = query.toLowerCase();
+      const exact = sampleProducts.find((p) => p.name.toLowerCase() === q);
+      const fuzzy = exact || sampleProducts.find(
+        (p) => q.includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(q),
+      );
+      if (fuzzy) {
+        setSelectedProduct(fuzzy);
+        setCurrentPage('dashboard');
+      }
+    }
+  }, []);
+
+  const handleSearch = useCallback(async () => {
     if (!searchQuery.trim() && !uploadedImage) {
       setIsSearching(false);
       return;
     }
 
     setIsRunning(true);
+    setVisionError(null);
     setSelectedProduct(null);
     setCurrentPage('dashboard');
     setIsSearching(true);
     setShowSuggestions(false);
-    
-    // Simulate search delay
+
+    // Image-driven path: hand the photo to the Vision Agent (Gemini Flash → Pro fallback).
+    if (uploadedImage) {
+      try {
+        const result = await analyzeImage(uploadedImage, 'tr');
+
+        // Confident catalog hit → jump straight to the product.
+        const matched = matchProductFromVision(result, sampleProducts);
+        if (matched && (result.confidence ?? 1) >= 0.55) {
+          setSelectedProduct(matched);
+          setSearchQuery(matched.name);
+          setIsRunning(false);
+          return;
+        }
+
+        // Brand recognised but model not pinned down → ask the user.
+        const brand = brandKeyFromVision(result, brandModels);
+        if (brand) {
+          setVisionDisambiguation({
+            brand,
+            suggestedModels: brandModels[brand] || [],
+            detected: result,
+          });
+          setIsRunning(false);
+          return;
+        }
+
+        // Nothing decisive — fall back to whatever keywords Vision returned.
+        const fallbackQuery = (result.product_name || result.search_keywords || '').trim();
+        if (fallbackQuery) {
+          finalizeQuery(fallbackQuery, { autoSelect: true });
+        } else {
+          setVisionError("We couldn't identify the product from the image. Try a different photo or type the name.");
+        }
+      } catch (err) {
+        console.error('Vision analysis failed:', err);
+        setVisionError(err?.message || 'Image analysis failed.');
+      } finally {
+        setIsRunning(false);
+      }
+      return;
+    }
+
+    // Text-only search — keep the existing simulated delay so the skeleton shows.
     setTimeout(() => {
       setIsRunning(false);
     }, 1500);
-  }, [searchQuery, uploadedImage]);
+  }, [searchQuery, uploadedImage, finalizeQuery]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSearch();
@@ -511,6 +578,33 @@ function App() {
 
       {/* Gemini-Powered Shopping Assistant */}
       <ChatWidget contextProduct={selectedProduct} />
+
+      {/* Image-search disambiguation */}
+      <VisionMatchModal
+        isOpen={!!visionDisambiguation}
+        brand={visionDisambiguation?.brand}
+        suggestedModels={visionDisambiguation?.suggestedModels || []}
+        detected={visionDisambiguation?.detected}
+        uploadedImage={uploadedImage}
+        onClose={() => setVisionDisambiguation(null)}
+        onConfirm={(modelName) => {
+          setVisionDisambiguation(null);
+          finalizeQuery(modelName, { autoSelect: true });
+        }}
+      />
+
+      {visionError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] bg-white border border-accent-rose/30 shadow-lg rounded-2xl px-5 py-3 text-sm text-slate-700 flex items-center gap-3">
+          <span className="w-2 h-2 rounded-full bg-accent-rose" />
+          {visionError}
+          <button
+            onClick={() => setVisionError(null)}
+            className="ml-2 text-xs font-bold text-slate-400 hover:text-slate-700"
+          >
+            DISMISS
+          </button>
+        </div>
+      )}
     </div>
   );
 }

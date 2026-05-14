@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Bell, Star, Zap, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { compareProducts } from '../services/api';
 import { PRODUCT_IMAGE_FALLBACK } from '../utils/productImage';
+import { getDefaultVariantSelection, resolveProductVariant } from '../utils/productVariants';
 
 const productLinksMapping = {
   "Samsung Galaxy S25 Ultra 512 GB 12 GB Ram": [
@@ -40,10 +41,17 @@ const productLinksMapping = {
 const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, isTracked, analysisReports, onAnalysisComplete }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [variantSelection, setVariantSelection] = useState(() => getDefaultVariantSelection(product));
 
   useEffect(() => {
     setCurrentImageIndex(0);
+    setVariantSelection(getDefaultVariantSelection(product));
   }, [product]);
+
+  const variantState = useMemo(
+    () => resolveProductVariant(product, variantSelection),
+    [product, variantSelection],
+  );
 
   if (loading || !product) {
     return (
@@ -58,7 +66,13 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
     );
   }
 
-  const { name: productName, images, id: productId } = product;
+  const { images, id: productId } = product;
+  const productName = variantState.displayName || product.name;
+  const resolvedSpecs = variantState.specs;
+  const resolvedStores = variantState.stores;
+  const lowestPrice = resolvedStores?.length
+    ? Math.min(...resolvedStores.map((s) => s.price))
+    : null;
   const productImages = (images || []).filter((image) => typeof image === 'string' && image.trim());
   const resolvedProductImages = productImages.length > 0 ? productImages : [PRODUCT_IMAGE_FALLBACK];
   const analysisReport = analysisReports?.[productId];
@@ -75,7 +89,11 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
     setIsAnalyzing(true);
     try {
       let links = [];
-      if (productLinksMapping[productName]) {
+      // Link mapping is keyed by the base catalog name; variant-applied
+      // display names may differ ("… 1 TB 12 GB Ram"), so look up by base.
+      if (productLinksMapping[product.name]) {
+        links = productLinksMapping[product.name];
+      } else if (productLinksMapping[productName]) {
         links = productLinksMapping[productName];
       } else {
         links = (product?.stores || [])
@@ -204,11 +222,73 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
           <p className="text-sm text-slate-500 mt-2 leading-relaxed">{product.description}</p>
         </div>
 
-        {product.specs && (
+        {product.variants?.length > 0 && (
+          <div className="mt-2 space-y-4">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">
+              Options
+            </h4>
+            <div className="space-y-4">
+              {product.variants.map((group) => {
+                const active = variantSelection[group.label];
+                return (
+                  <div key={group.label}>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                        {group.label}
+                      </p>
+                      <p className="text-[11px] font-black text-slate-700">{active}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.options.map((opt) => {
+                        const isActive = active === opt.shortValue;
+                        return (
+                          <button
+                            key={opt.shortValue}
+                            onClick={() =>
+                              setVariantSelection((prev) => ({
+                                ...prev,
+                                [group.label]: opt.shortValue,
+                              }))
+                            }
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                              isActive
+                                ? 'bg-primary text-white border-primary shadow-sm'
+                                : 'bg-white text-slate-600 border-slate-200 hover:border-primary/60 hover:text-primary'
+                            }`}
+                          >
+                            {opt.shortValue}
+                            {opt.priceDelta !== 0 && !isActive && (
+                              <span className={`ml-1.5 text-[10px] font-bold ${opt.priceDelta > 0 ? 'text-accent-rose' : 'text-emerald-500'}`}>
+                                {opt.priceDelta > 0 ? '+' : ''}
+                                {opt.priceDelta.toLocaleString()}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {lowestPrice != null && (
+              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 mt-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                  Starting At
+                </span>
+                <span className="text-base font-black text-slate-900">
+                  {lowestPrice.toLocaleString()} TL
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {resolvedSpecs && (
           <div className="mt-4 space-y-4">
             <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Technical Details</h4>
             <div className="grid grid-cols-1 gap-3">
-              {product.specs.map((spec) => (
+              {resolvedSpecs.map((spec) => (
                 <div key={spec.label} className="flex justify-between items-center py-1.5 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded-lg transition-colors">
                   <span className="text-[11px] font-bold text-slate-500">{spec.label}</span>
                   <span className="text-[11px] font-black text-slate-800 text-right ml-4">{spec.value}</span>
