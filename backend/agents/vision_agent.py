@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 from typing import Optional
 
 import httpx
@@ -33,6 +34,29 @@ logger = logging.getLogger("shopsage.vision_agent")
 # ─────────────────────────────────────────────────────────────
 # Prompt template
 # ─────────────────────────────────────────────────────────────
+def _parse_vision_json(raw_text: str) -> dict:
+    """Robust JSON extraction from a Gemini response.
+
+    Handles markdown-fenced output (```json ... ```), leading prose, and
+    trailing chatter that the model occasionally adds despite instructions.
+    """
+    if not raw_text:
+        raise ValueError("Vision model returned empty text.")
+
+    text = raw_text.strip()
+
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
+    if fenced:
+        return json.loads(fenced.group(1))
+
+    first = text.find("{")
+    last = text.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        return json.loads(text[first : last + 1])
+
+    return json.loads(text)
+
+
 _VISION_PROMPT = """
 You are a world-class product identification expert.
 Analyze the provided image and return ONLY a JSON object (no markdown, no extra text)
@@ -94,13 +118,13 @@ async def _call_flash_vision(image_part: dict, locale: str) -> dict:
             generation_config=genai.GenerationConfig(
                 temperature=0.1,       # Near-deterministic for factual extraction
                 max_output_tokens=512,
+                response_mime_type="application/json",
             ),
         )
     except Exception as err:
         raise_if_auth_error(err)
         raise
-    raw = response.text.strip()
-    return json.loads(raw)
+    return _parse_vision_json(getattr(response, "text", "") or "")
 
 
 async def _call_pro_vision_fallback(image_part: dict, locale: str) -> dict:
@@ -126,12 +150,16 @@ async def _call_pro_vision_fallback(image_part: dict, locale: str) -> dict:
     try:
         response = pro.generate_content(
             [prompt, image_part],
-            generation_config=genai.GenerationConfig(temperature=0.1, max_output_tokens=1024),
+            generation_config=genai.GenerationConfig(
+                temperature=0.1,
+                max_output_tokens=1024,
+                response_mime_type="application/json",
+            ),
         )
     except Exception as err:
         raise_if_auth_error(err)
         raise
-    return json.loads(response.text.strip())
+    return _parse_vision_json(getattr(response, "text", "") or "")
 
 
 async def _fetch_image_bytes(url: str) -> bytes:

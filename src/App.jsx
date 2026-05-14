@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { sampleProducts, brandModels } from './data/products';
 import { analyzeImage } from './services/api';
 import { matchProductFromVision, brandKeyFromVision } from './utils/productMatch';
+import { filterProducts, findBestProductMatch, buildSuggestions } from './utils/searchMatch';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -19,9 +20,10 @@ function App() {
 
   // Search and App State
   const [searchQuery, setSearchQuery] = useState('');
+  const [committedQuery, setCommittedQuery] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
-  
+
   // Navigation State
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -48,16 +50,13 @@ function App() {
 
   const finalizeQuery = useCallback((query, { autoSelect = true } = {}) => {
     setSearchQuery(query);
+    setCommittedQuery(query);
     setIsSearching(true);
     setShowSuggestions(false);
     if (autoSelect) {
-      const q = query.toLowerCase();
-      const exact = sampleProducts.find((p) => p.name.toLowerCase() === q);
-      const fuzzy = exact || sampleProducts.find(
-        (p) => q.includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(q),
-      );
-      if (fuzzy) {
-        setSelectedProduct(fuzzy);
+      const match = findBestProductMatch(query, sampleProducts);
+      if (match) {
+        setSelectedProduct(match);
         setCurrentPage('dashboard');
       }
     }
@@ -66,6 +65,7 @@ function App() {
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim() && !uploadedImage) {
       setIsSearching(false);
+      setCommittedQuery('');
       return;
     }
 
@@ -75,6 +75,7 @@ function App() {
     setCurrentPage('dashboard');
     setIsSearching(true);
     setShowSuggestions(false);
+    setCommittedQuery(searchQuery);
 
     // Image-driven path: hand the photo to the Vision Agent (Gemini Flash → Pro fallback).
     if (uploadedImage) {
@@ -130,6 +131,7 @@ function App() {
 
   const handleClearSearch = () => {
     setSearchQuery('');
+    setCommittedQuery('');
     setIsSearching(false);
     setUploadedImage(null);
   };
@@ -206,20 +208,17 @@ function App() {
     'Bose QuietComfort Ultra',
   ];
 
-  const searchSuggestions = useMemo(() => {
-    if (!searchQuery || searchQuery.length < 2) return [];
-    const q = searchQuery.toLowerCase();
-    return suggestionDatabase
-      .filter(s => s.toLowerCase().includes(q) && s.toLowerCase() !== q)
-      .slice(0, 7);
-  }, [searchQuery]);
+  const searchSuggestions = useMemo(
+    () => buildSuggestions(searchQuery, sampleProducts, suggestionDatabase, 7),
+    [searchQuery],
+  );
 
   const displayedProducts = useMemo(() => {
-    if (isSearching && searchQuery) {
-      return sampleProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (isSearching && committedQuery) {
+      return filterProducts(committedQuery, sampleProducts);
     }
     return sampleProducts;
-  }, [isSearching, searchQuery]);
+  }, [isSearching, committedQuery]);
 
   return (
     <div className="min-h-screen bg-background text-slate-900 font-sans selection:bg-primary/20">
@@ -295,9 +294,15 @@ function App() {
                           key={idx}
                           onClick={() => {
                             setSearchQuery(suggestion);
+                            setCommittedQuery(suggestion);
                             setShowSuggestions(false);
                             setIsSearching(true);
                             setIsRunning(true);
+                            const match = findBestProductMatch(suggestion, sampleProducts);
+                            if (match) {
+                              setSelectedProduct(match);
+                              setCurrentPage('dashboard');
+                            }
                             setTimeout(() => setIsRunning(false), 1500);
                           }}
                           className="w-full text-left px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-primary transition-colors flex items-center gap-3"
@@ -398,7 +403,7 @@ function App() {
               >
                 {isSearching && (
                   <h3 className="text-xl font-black text-slate-900 mb-4">
-                    Results for "{searchQuery}" ({displayedProducts.length})
+                    Results for "{committedQuery}" ({displayedProducts.length})
                   </h3>
                 )}
                 {!isSearching && (
@@ -422,6 +427,7 @@ function App() {
                             onTrack={toggleTracked}
                             isFavorite={favorites.some(f => f.id === product.id)}
                             isTracked={tracked.some(t => t.id === product.id)}
+                            analyzedPrice={analysisReports?.[product.id]?.lowestPrice ?? null}
                           />
                         ))}
                       </div>
@@ -476,17 +482,17 @@ function App() {
                   <ArrowLeft className="w-4 h-4" />
                   Go Back
                 </button>
-                <ProductAnalysis 
-                  loading={false} 
-                  product={selectedProduct} 
+                <ProductAnalysis
+                  loading={false}
+                  product={selectedProduct}
                   onFavorite={() => toggleFavorite(selectedProduct)}
                   onTrack={() => toggleTracked(selectedProduct)}
                   isFavorite={favorites.some(f => f.id === selectedProduct.id)}
                   isTracked={tracked.some(t => t.id === selectedProduct.id)}
                   analysisReports={analysisReports}
-                  onAnalysisComplete={(report) => {
+                  onAnalysisComplete={(payload) => {
                     setAnalysisReports((prev) =>
-                      selectedProduct ? { ...prev, [selectedProduct.id]: report } : prev
+                      selectedProduct ? { ...prev, [selectedProduct.id]: payload } : prev
                     );
                   }}
                 />

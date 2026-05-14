@@ -150,5 +150,18 @@ class OrchestrateResponse(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
 
+class StorePrice(BaseModel):
+    site: str
+    url: str
+    price: Optional[float] = None
+    currency: str = "TRY"
+
+
 class CompareResponse(BaseModel):
     markdown_report: str
+    lowest_price: Optional[float] = Field(
+        None,
+        description="Cheapest numeric price found across scraped sites (in store currency).",
+    )
+    lowest_price_site: Optional[str] = None
+    store_prices: List[StorePrice] = Field(default_factory=list)

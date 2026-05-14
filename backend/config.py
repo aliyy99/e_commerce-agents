@@ -28,7 +28,9 @@ class Settings:
     # Model names (env-overridable defaults)
     FLASH_MODEL = os.getenv("FLASH_MODEL", "gemini-2.5-flash")
     PRO_MODEL = os.getenv("PRO_MODEL", "gemini-2.5-pro")
-    CHAT_MODEL = os.getenv("CHAT_MODEL", FLASH_MODEL)
+    # Chat defaults to the smarter Pro model for higher answer quality.
+    # Falls back to Flash inside generate_chat_reply if Pro errors.
+    CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.5-pro")
     IMAGE_MODEL = os.getenv("IMAGE_MODEL", "imagen-3.0-generate-002")
 
     # ── Supabase ───────────────────────────────

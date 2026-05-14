@@ -42,10 +42,12 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [variantSelection, setVariantSelection] = useState(() => getDefaultVariantSelection(product));
+  const [analysisError, setAnalysisError] = useState(null);
 
   useEffect(() => {
     setCurrentImageIndex(0);
     setVariantSelection(getDefaultVariantSelection(product));
+    setAnalysisError(null);
   }, [product]);
 
   const variantState = useMemo(
@@ -69,13 +71,12 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
   const { images, id: productId } = product;
   const productName = variantState.displayName || product.name;
   const resolvedSpecs = variantState.specs;
-  const resolvedStores = variantState.stores;
-  const lowestPrice = resolvedStores?.length
-    ? Math.min(...resolvedStores.map((s) => s.price))
-    : null;
   const productImages = (images || []).filter((image) => typeof image === 'string' && image.trim());
   const resolvedProductImages = productImages.length > 0 ? productImages : [PRODUCT_IMAGE_FALLBACK];
-  const analysisReport = analysisReports?.[productId];
+  const analysisPayload = analysisReports?.[productId];
+  const analysisReport = analysisPayload?.markdown || null;
+  const analyzedLowestPrice = analysisPayload?.lowestPrice ?? null;
+  const analyzedLowestSite = analysisPayload?.lowestSite || null;
 
   const handleNextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % resolvedProductImages.length);
@@ -87,6 +88,7 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
+    setAnalysisError(null);
     try {
       let links = [];
       // Link mapping is keyed by the base catalog name; variant-applied
@@ -125,11 +127,16 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
       if (!result?.markdown_report) {
         throw new Error('Backend did not return a valid analysis report.');
       }
-      onAnalysisComplete(result.markdown_report);
+      onAnalysisComplete({
+        markdown: result.markdown_report,
+        lowestPrice: result.lowest_price ?? null,
+        lowestSite: result.lowest_price_site ?? null,
+        storePrices: result.store_prices ?? [],
+      });
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'An unexpected error occurred during analysis.';
-      onAnalysisComplete(`Analysis could not be generated: ${message}`);
+      setAnalysisError(message);
     } finally {
       setIsAnalyzing(false);
     }
@@ -271,13 +278,13 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
                 );
               })}
             </div>
-            {lowestPrice != null && (
-              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 mt-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                  Starting At
+            {analyzedLowestPrice != null && (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mt-2">
+                <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">
+                  Analyzed Lowest{analyzedLowestSite ? ` · ${analyzedLowestSite}` : ''}
                 </span>
                 <span className="text-base font-black text-slate-900">
-                  {lowestPrice.toLocaleString()} TL
+                  {Math.round(analyzedLowestPrice).toLocaleString()} TL
                 </span>
               </div>
             )}
@@ -316,7 +323,22 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
           </button>
         </div>
 
-        {analysisReport ? (
+        {analysisError ? (
+          <div className="bg-white border border-accent-rose/30 rounded-2xl p-8 shadow-sm mt-14">
+            <h3 className="text-lg font-bold text-accent-rose mb-2">Analiz tamamlanamadı</h3>
+            <p className="text-sm text-slate-600 leading-relaxed mb-4">{analysisError}</p>
+            <p className="text-xs text-slate-400">
+              Backend servisinin çalıştığını ve ağ bağlantınızı kontrol edin, ardından tekrar deneyin.
+            </p>
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing}
+              className="mt-4 px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary-hover disabled:opacity-50"
+            >
+              Tekrar Dene
+            </button>
+          </div>
+        ) : analysisReport ? (
           <div className="prose prose-slate max-w-none bg-white p-8 rounded-2xl shadow-sm border border-slate-100 overflow-y-auto max-h-[700px] custom-markdown mt-14">
             <ReactMarkdown
               components={{

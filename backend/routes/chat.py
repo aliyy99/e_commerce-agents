@@ -29,8 +29,8 @@ async def chat_with_assistant(request: ChatRequest) -> ChatResponse:
 
         return ChatResponse(reply=reply_text)
     except Exception as e:
-        logger.error("Chat route failed: %s", e)
+        logger.error("Chat route failed: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Chat assistant failed.",
+            detail=f"Chat assistant failed: {e}",
         )

@@ -444,9 +444,54 @@ def _generate_report(model_name: str, prompt: str, locale: str) -> str:
     return text
 
 
-async def run_compare_agent(request: CompareRequest) -> str:
+def _parse_price_to_float(raw: Any) -> float | None:
+    """Best-effort numeric parsing of mixed locale price strings (e.g. '74.999,90')."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text or text.lower() == "not found":
+        return None
+    cleaned = re.sub(r"[^\d,.\-]", "", text)
+    if not cleaned:
+        return None
+    # Heuristic: if both separators present, treat the rightmost as the
+    # decimal separator and strip the other as a thousands grouping.
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif "," in cleaned:
+        # Comma is decimal separator if it appears to fence ≤2 digits.
+        if re.search(r",\d{1,2}$", cleaned):
+            cleaned = cleaned.replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _collect_store_prices(scraped: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for item in scraped:
+        price_value = _parse_price_to_float(item.get("price"))
+        out.append({
+            "site": item.get("site") or "Unknown",
+            "url": item.get("url"),
+            "price": price_value,
+            "currency": item.get("currency") or "TRY",
+        })
+    return out
+
+
+async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
     """
     Scrapes live product page data from provided links and produces a Gemini report.
+
+    Returns a dict with keys: markdown_report, lowest_price, lowest_price_site,
+    store_prices.
     """
     valid_products = [
         product
@@ -464,22 +509,42 @@ async def run_compare_agent(request: CompareRequest) -> str:
     if ok_count == 0:
         raise RuntimeError("Could not scrape readable price/rating/review data from any link.")
 
+    store_prices = _collect_store_prices(scraped)
+    priced = [sp for sp in store_prices if sp["price"] is not None and sp["price"] > 0]
+    if priced:
+        cheapest = min(priced, key=lambda sp: sp["price"])
+        lowest_price = cheapest["price"]
+        lowest_price_site = cheapest["site"]
+    else:
+        lowest_price = None
+        lowest_price_site = None
+
     prompt = _COMPARE_PROMPT.format(json_data=json.dumps(scraped, ensure_ascii=False, indent=2))
     model_candidates = list(dict.fromkeys([settings.FLASH_MODEL, settings.PRO_MODEL]))
 
     last_error: Exception | None = None
+    report: str | None = None
     for model_name in model_candidates:
         try:
             report = _generate_report(model_name, prompt, request.locale)
             if model_name != settings.FLASH_MODEL:
                 logger.warning("CompareAgent -> fallback model used: %s", model_name)
-            return report
+            break
         except GeminiAuthError as err:
-            # Auth errors won't recover by trying the next model — fail fast.
             logger.error("CompareAgent auth error: %s", err)
             raise RuntimeError(str(err)) from err
         except Exception as err:
             logger.warning("CompareAgent model failed (%s): %s", model_name, err)
             last_error = err
 
-    raise RuntimeError(f"Gemini link-analysis report could not be generated. Cause: {last_error}") from last_error
+    if report is None:
+        raise RuntimeError(
+            f"Gemini link-analysis report could not be generated. Cause: {last_error}"
+        ) from last_error
+
+    return {
+        "markdown_report": report,
+        "lowest_price": lowest_price,
+        "lowest_price_site": lowest_price_site,
+        "store_prices": store_prices,
+    }

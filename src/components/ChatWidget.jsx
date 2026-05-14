@@ -12,14 +12,30 @@ const ChatWidget = ({ contextProduct }) => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const lastAssistantRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const prevMsgCountRef = useRef(messages.length);
 
   useEffect(() => {
-    if (isOpen) {
-      scrollToBottom();
+    if (!isOpen) {
+      prevMsgCountRef.current = messages.length;
+      return;
+    }
+
+    const grew = messages.length > prevMsgCountRef.current;
+    prevMsgCountRef.current = messages.length;
+
+    const last = messages[messages.length - 1];
+    // When a fresh assistant reply lands, pin its TOP to the top of the chat
+    // viewport so the user reads it from the beginning by scrolling down.
+    if (grew && last?.role === 'assistant' && lastAssistantRef.current && messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const node = lastAssistantRef.current;
+      const top = node.offsetTop - container.offsetTop;
+      container.scrollTo({ top, behavior: 'smooth' });
+    } else {
+      // User just sent something, or initial open — keep latest visible at bottom.
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
 
@@ -109,10 +125,13 @@ const ChatWidget = ({ contextProduct }) => {
             </div>
 
             {/* Chat Content */}
-            <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-slate-50/50">
-              {messages.map((msg, idx) => (
-                <motion.div 
-                  key={idx} 
+            <div ref={messagesContainerRef} className="flex-1 p-4 space-y-4 overflow-y-auto bg-slate-50/50">
+              {messages.map((msg, idx) => {
+                const isLastAssistant = idx === messages.length - 1 && msg.role === 'assistant';
+                return (
+                <motion.div
+                  key={idx}
+                  ref={isLastAssistant ? lastAssistantRef : null}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
@@ -139,7 +158,8 @@ const ChatWidget = ({ contextProduct }) => {
                     )}
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
               {isLoading && (
                 <motion.div 
                   initial={{ opacity: 0 }}
