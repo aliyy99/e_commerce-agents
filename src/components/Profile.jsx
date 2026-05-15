@@ -202,7 +202,7 @@ const Profile = ({ forceTab }) => {
                   <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="w-5 h-5 accent-primary rounded" />
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Market Trends</p>
+                      <p className="text-sm font-bold text-slate-900">Price Graphic</p>
                       <p className="text-xs text-slate-500">Weekly discount newsletters</p>
                     </div>
                   </label>

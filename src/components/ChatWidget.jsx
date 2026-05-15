@@ -9,7 +9,7 @@ const MAX_INPUT_HEIGHT = 120;
 const ChatWidget = ({ contextProduct }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Hello! 👋 I'm ShopSage AI, your personal shopping assistant. I can help you with price comparisons, technical details, and buying advice. How can I help you today?" }
+    { role: 'assistant', content: "Hello! 👋 I'm Techno Track, your personal shopping assistant. I can help you with price comparisons, technical details, and buying advice. How can I help you today?" }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -118,7 +118,7 @@ const ChatWidget = ({ contextProduct }) => {
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black tracking-tight">ShopSage AI</h3>
+                  <h3 className="text-sm font-black tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>Techno Track</h3>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse" />
                     <span className="text-[10px] text-white/80 font-medium">Powered by Gemini</span>

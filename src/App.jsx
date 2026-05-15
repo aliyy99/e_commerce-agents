@@ -6,8 +6,9 @@ import PipelineLoader from './components/PipelineLoader';
 import ProductCard from './components/ProductCard';
 import ChatWidget from './components/ChatWidget';
 import Campaigns from './components/Campaigns';
+import PriceGraphic from './components/PriceGraphic';
 import VisionMatchModal from './components/VisionMatchModal';
-import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft, TrendingUp } from 'lucide-react';
+import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { sampleProducts, brandModels } from './data/products';
 import { analyzeImage } from './services/api';
@@ -33,6 +34,7 @@ function App() {
   const [favorites, setFavorites] = useState([]);
   const [tracked, setTracked] = useState([]);
   const [analysisReports, setAnalysisReports] = useState({});
+  const [priceHistoryReports, setPriceHistoryReports] = useState({});
 
   // Vision (image-search) State
   const [visionDisambiguation, setVisionDisambiguation] = useState(null); // { brand, suggestedModels, detected }
@@ -250,15 +252,16 @@ function App() {
             <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize whitespace-nowrap min-w-[160px]">
               {currentPage === 'dashboard' && (selectedProduct ? 'Product Details' : 'Discover')}
               {currentPage === 'campaigns' && 'Campaigns'}
-              {currentPage === 'market' && 'Global Trends'}
+              {currentPage === 'market' && 'Price Graphic'}
               {currentPage === 'tracked' && 'Tracked Products'}
               {currentPage === 'favorites' && 'Favorites'}
               {currentPage === 'profile' && 'Profile'}
             </h2>
+            {currentPage === 'dashboard' && (
             <div className="relative flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group z-50">
               <Search className="w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -352,6 +355,7 @@ function App() {
                 )}
               </AnimatePresence>
             </div>
+            )}
           </div>
 
           <div className="flex items-center gap-4 ml-6">
@@ -523,20 +527,17 @@ function App() {
             )}
 
             {currentPage === 'market' && (
-              <motion.div key="market" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <h2 className="text-3xl font-display font-black text-slate-900">Global Market Trends</h2>
-                <div className="grid grid-cols-3 gap-6">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="glass-card p-8 bg-white border-slate-100">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-6">
-                        <TrendingUp className="w-6 h-6" />
-                      </div>
-                      <h3 className="text-xl font-bold mb-2">Trend Analysis #{i}</h3>
-                      <p className="text-sm text-slate-500 mb-6">Market is shifting towards sustainable tech integration.</p>
-                      <button className="text-xs font-black text-primary uppercase tracking-widest">Read Report</button>
-                    </div>
-                  ))}
-                </div>
+              <motion.div key="market" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <PriceGraphic
+                  favorites={favorites}
+                  tracked={tracked}
+                  onFavorite={toggleFavorite}
+                  onTrack={toggleTracked}
+                  priceHistoryReports={priceHistoryReports}
+                  onAnalysisComplete={(productId, report) =>
+                    setPriceHistoryReports((prev) => ({ ...prev, [productId]: report }))
+                  }
+                />
               </motion.div>
             )}
 

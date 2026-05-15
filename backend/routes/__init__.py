@@ -7,6 +7,7 @@ from .tracking       import router as tracking_router
 from .user_data      import router as user_data_router
 from .stream         import router as stream_router
 from .chat           import router as chat_router
+from .price_history  import router as price_history_router
 
 __all__ = [
     "vision_router",
@@ -17,4 +18,5 @@ __all__ = [
     "user_data_router",
     "stream_router",
     "chat_router",
+    "price_history_router",
 ]

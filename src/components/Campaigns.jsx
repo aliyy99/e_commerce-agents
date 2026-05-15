@@ -24,7 +24,7 @@ const Campaigns = () => {
       id: 2,
       type: 'coupon',
       title: 'First Purchase Special',
-      description: '$50 discount valid on your first electronics purchase via SHOPSAGE.AI.',
+      description: '$50 discount valid on your first electronics purchase via Techno Track.',
       code: 'SAGE50',
       expire: '7 days left'
     },

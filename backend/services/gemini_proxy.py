@@ -16,7 +16,7 @@ from .gemini_client import (
 logger = logging.getLogger("shopsage.services.gemini_proxy")
 
 _CHAT_SYSTEM = """
-You are ShopSage Assistant, a highly intelligent and helpful shopping guide.
+You are Techno Track Assistant, a highly intelligent and helpful shopping guide.
 Your goal is to help users make informed purchasing decisions based on the product analysis data provided to you.
 Be concise, friendly, and data-driven. Always refer to the provided context data when answering.
 If the context data shows that prices are dropping or an item is overpriced, warn the user.

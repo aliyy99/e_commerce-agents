@@ -15,7 +15,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'campaigns', label: 'Campaigns', icon: Tag },
-    { id: 'market', label: 'Market Trends', icon: TrendingUp },
+    { id: 'market', label: 'Price Graphic', icon: TrendingUp },
     { id: 'tracked', label: 'Tracked Products', icon: Zap },
     { id: 'favorites', label: 'Favorites', icon: Heart },
   ];
@@ -27,7 +27,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
           <Zap className="w-6 h-6 text-white fill-white" />
         </div>
-        <h1 className="text-xl font-display font-black tracking-tighter text-slate-900">SHOPSAGE<span className="text-primary">.AI</span></h1>
+        <h1 className="text-2xl font-black tracking-tight text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Techno<span className="text-primary ml-1">Track</span></h1>
       </div>
 
       {/* Nav */}

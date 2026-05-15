@@ -93,6 +93,18 @@ export async function compareProducts(products) {
   });
 }
 
+export async function fetchPriceHistory({ productName, productId = null, currency = 'TRY', locale = 'tr' }) {
+  return apiFetch('/price-history', {
+    method: 'POST',
+    body: JSON.stringify({
+      product_name: productName,
+      product_id: productId,
+      currency,
+      locale,
+    }),
+  });
+}
+
 
 
 // ── Pipeline (Orchestration) ───────────────────────────────────
