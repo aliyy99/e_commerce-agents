@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, TrendingUp, TrendingDown, Activity, Zap, ArrowLeft, ExternalLink } from 'lucide-react';
-import ProductCard from './ProductCard';
+import { Search, TrendingUp, TrendingDown, Activity, Zap, ArrowLeft, ExternalLink, AlertTriangle, Heart, Bell } from 'lucide-react';
 import PriceChart from './PriceChart';
 import { sampleProducts } from '../data/products';
 import { filterProducts } from '../utils/searchMatch';
@@ -105,10 +104,10 @@ const PriceGraphic = ({
             <button
               onClick={handleAnalyze}
               disabled={isAnalyzing}
-              className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shadow-lg transition-all ${
+              className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shadow-lg transition-all duration-300 ${
                 isAnalyzing
-                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                  : 'bg-primary text-white hover:bg-primary-dark shadow-primary/20 hover:-translate-y-0.5'
+                  ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-primary to-indigo-500 text-white hover:from-primary-dark hover:to-indigo-600 shadow-primary/30 hover:-translate-y-1 hover:shadow-xl'
               }`}
             >
               <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse' : ''}`} />
@@ -140,7 +139,7 @@ const PriceGraphic = ({
             )}
 
             {!selectedReport && !isAnalyzing && !error && (
-              <div className="bg-gradient-to-br from-white via-white to-primary/5 rounded-3xl border border-slate-100 shadow-sm p-12 flex flex-col items-center justify-center min-h-[480px]">
+              <div className="bg-gradient-to-br from-white via-white to-primary/10 rounded-3xl border border-slate-100/60 shadow-md p-12 flex flex-col items-center justify-center min-h-[480px] transition-all hover:shadow-lg">
                 <div className="relative w-24 h-24 mb-6">
                   <div className="absolute inset-0 rounded-3xl bg-primary/10 rotate-6" />
                   <div className="absolute inset-0 rounded-3xl bg-primary/15 -rotate-6" />
@@ -150,7 +149,7 @@ const PriceGraphic = ({
                 </div>
                 <h3 className="text-2xl font-display font-black text-slate-900 mb-2">Comprehensive Price Analysis</h3>
                 <p className="text-sm text-slate-500 max-w-md text-center leading-relaxed">
-                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, powered by Gemini 3 Pro and live Google Search data.
+                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, powered by Gemini 3.1 Pro and live Google Search data.
                 </p>
               </div>
             )}
@@ -171,6 +170,18 @@ const PriceGraphic = ({
 
             {selectedReport && (
               <>
+                {selectedReport.grounded === false && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-amber-900">AI estimate — not live data</p>
+                      <p className="text-xs text-amber-800 leading-relaxed mt-0.5">
+                        Google Search grounding didn't return any e-commerce sources for this product. The chart values are AI-extrapolated and may not match current store prices.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
                   <PriceChart points={selectedReport.points} currency={selectedReport.currency} />
                 </div>
@@ -241,31 +252,76 @@ const PriceGraphic = ({
       <AnimatePresence mode="popLayout">
         {displayedProducts.length > 0 ? (
           <motion.div
-            key="grid"
+            key="list"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            className="flex flex-col gap-3"
           >
             {displayedProducts.map((product) => {
               const report = priceHistoryReports?.[product.id];
               const trendMeta = report ? TREND_META[report.trend] || TREND_META.stable : null;
+              const isFavorite = favorites.some((f) => f.id === product.id);
+              const isTracked = tracked.some((t) => t.id === product.id);
+              const productImage = (product.images || [])[0] || PRODUCT_IMAGE_FALLBACK;
+              const analyzedPrice = report?.lowest ?? null;
+
               return (
-                <div key={product.id} className="relative">
-                  <ProductCard
-                    product={product}
-                    onClick={(p) => setSelectedProduct(p)}
-                    onFavorite={onFavorite}
-                    onTrack={onTrack}
-                    isFavorite={favorites.some((f) => f.id === product.id)}
-                    isTracked={tracked.some((t) => t.id === product.id)}
-                    analyzedPrice={report?.lowest ?? null}
-                  />
-                  {report && trendMeta && (
-                    <div className={`absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full ${trendMeta.bg} ${trendMeta.border} border shadow-sm pointer-events-none`}>
-                      <trendMeta.Icon className={`w-3 h-3 ${trendMeta.color}`} />
-                      <span className={`text-[10px] font-bold uppercase tracking-widest ${trendMeta.color}`}>{trendMeta.label}</span>
+                <div 
+                  key={product.id} 
+                  onClick={() => setSelectedProduct(product)}
+                  className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-white border border-slate-200 hover:border-primary/40 rounded-2xl cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
+                >
+                  <div className="relative w-20 h-20 sm:w-16 sm:h-16 flex-shrink-0 bg-slate-50 rounded-xl flex items-center justify-center p-2 border border-slate-100">
+                    <img 
+                      src={productImage} 
+                      alt={product.name} 
+                      onError={(e) => {
+                        if (e.currentTarget.dataset.fb === '1') return;
+                        e.currentTarget.dataset.fb = '1';
+                        e.currentTarget.src = PRODUCT_IMAGE_FALLBACK;
+                      }}
+                      className="w-full h-full object-contain mix-blend-multiply"
+                    />
+                  </div>
+                  
+                  <div className="flex-1 flex flex-col justify-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-0.5">{product.brand}</p>
+                    <h3 className="text-base font-bold text-slate-900 leading-tight">{product.name}</h3>
+                  </div>
+
+                  <div className="flex items-center gap-4 sm:ml-auto">
+                    {report && trendMeta ? (
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${trendMeta.bg} ${trendMeta.border} border`}>
+                        <trendMeta.Icon className={`w-3.5 h-3.5 ${trendMeta.color}`} />
+                        <div className="flex flex-col">
+                          <span className={`text-[9px] font-bold uppercase tracking-wider ${trendMeta.color} leading-none mb-0.5`}>{trendMeta.label}</span>
+                          <span className="text-sm font-black text-slate-900 leading-none">{Math.round(analyzedPrice).toLocaleString()} TL</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 text-right">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Price</p>
+                        <p className="text-sm font-bold text-slate-400">Not analyzed</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onFavorite(product); }}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isFavorite ? 'bg-accent-rose/10 text-accent-rose' : 'bg-slate-50 text-slate-400 hover:text-accent-rose hover:bg-accent-rose/10'}`}
+                        title="Favorite"
+                      >
+                        <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onTrack(product); }}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isTracked ? 'bg-primary/10 text-primary' : 'bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/10'}`}
+                        title="Track"
+                      >
+                        <Bell className="w-4 h-4" fill={isTracked ? "currentColor" : "none"} />
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -275,9 +331,10 @@ const PriceGraphic = ({
             key="empty"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="glass-card p-12 text-center bg-white border-slate-100"
+            className="glass-card p-16 text-center bg-gradient-to-br from-white to-slate-50 border-slate-100 flex flex-col items-center justify-center gap-4 shadow-sm"
           >
-            <p className="text-slate-500">No products match your search.</p>
+            <Search className="w-10 h-10 text-slate-300" />
+            <p className="text-slate-500 font-medium">No products match your search.</p>
           </motion.div>
         )}
       </AnimatePresence>

@@ -60,6 +60,10 @@ class PriceHistoryResponse(BaseModel):
     average: Optional[float] = None
     sources: List[PriceHistorySource] = Field(default_factory=list)
     model_used: str
+    # True only when the model actually invoked Google Search and returned
+    # grounding chunks. False means the chart values are AI-extrapolated rather
+    # than fetched from live e-commerce data — frontend should warn the user.
+    grounded: bool = False
 
 
 # ── Month helpers ─────────────────────────────────────────────────────────
@@ -223,30 +227,14 @@ def _parse_json_payload(text: str) -> dict:
 
 
 def _try_model(model_name: str, prompt: str, tool_spec):
-    """Run one (model, tool_spec) combo. tool_spec=None for ungrounded."""
-    kwargs = {
-        "model_name": model_name,
-        "system_instruction": _PRICE_HISTORY_SYSTEM,
-        "safety_settings": _SAFETY_SETTINGS,
-    }
-    if tool_spec is not None:
-        kwargs["tools"] = [tool_spec]
-    model = genai.GenerativeModel(**kwargs)
-
-    # Force JSON mime type when ungrounded — tools and response_mime_type are
-    # incompatible on the Gemini API, so we only constrain output when we've
-    # already fallen back to a non-search attempt.
-    if tool_spec is None:
-        generation_config = genai.GenerationConfig(
-            temperature=_GENERATION_CONFIG.temperature,
-            top_p=_GENERATION_CONFIG.top_p,
-            max_output_tokens=_GENERATION_CONFIG.max_output_tokens,
-            response_mime_type="application/json",
-        )
-    else:
-        generation_config = _GENERATION_CONFIG
-
-    response = model.generate_content(prompt, generation_config=generation_config)
+    """Run one (model, tool_spec) combo with Google Search grounding enabled."""
+    model = genai.GenerativeModel(
+        model_name=model_name,
+        system_instruction=_PRICE_HISTORY_SYSTEM,
+        safety_settings=_SAFETY_SETTINGS,
+        tools=[tool_spec],
+    )
+    response = model.generate_content(prompt, generation_config=_GENERATION_CONFIG)
     text = (getattr(response, "text", None) or "").strip()
     if not text:
         raise ValueError(f"Gemini returned empty response (model={model_name}).")
@@ -310,16 +298,13 @@ async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
     months = _last_12_months()
     prompt = _build_prompt(body.product_name, body.currency, months)
 
-    # Pro tier shares one heavily rate-limited daily quota across all *-pro
-    # models on the free tier, so we cascade Pro → Flash variants that have
-    # independent quota and still produce solid grounded results.
+    # Tight cascade: one Pro candidate, then Flash (independent quota). No
+    # ungrounded fallback — if Google Search grounding can't fire, we return
+    # 502 rather than silently serve AI-extrapolated prices the user can't
+    # distinguish from real e-commerce data.
     candidate_models = list(dict.fromkeys([
-        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-3-pro-preview",
-        settings.PRO_MODEL,
-        settings.VISION_MODEL,          # gemini-3-flash-preview (independent quota)
-        settings.CHAT_MODEL,            # gemini-3-flash-preview (same family, kept for clarity)
-        settings.CHAT_FALLBACK_MODEL,   # gemini-2.5-flash-lite
-        settings.FLASH_MODEL,
+        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-3.1-pro-preview",
+        settings.VISION_MODEL,  # gemini-3-flash-preview (independent quota)
     ]))
     candidate_models = [m for m in candidate_models if m]
 
@@ -331,11 +316,9 @@ async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
     # Tool spec attempts, in order:
     #  - {"google_search_retrieval": {}} works on Gemini 1.5 / 3 family
     #  - {"google_search": {}} works on Gemini 2.0+ (newer SDK contract)
-    #  - None: ungrounded (final fallback so we still return JSON)
     tool_attempts = [
         {"google_search_retrieval": {}},
         {"google_search": {}},
-        None,
     ]
 
     for model_name in candidate_models:
@@ -399,4 +382,5 @@ async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
         average=round(average, 2) if average is not None else None,
         sources=[PriceHistorySource(**s) for s in sources],
         model_used=last_model or "unknown",
+        grounded=bool(sources),
     )
