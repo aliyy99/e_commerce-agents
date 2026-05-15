@@ -43,6 +43,12 @@ const ProductCard = ({ product, onClick, onFavorite, onTrack, isFavorite, isTrac
       onMouseLeave={() => setIsHover(false)}
     >
       <div className="relative h-48 bg-slate-100 overflow-hidden">
+        {isTracked && trackingExpiresAt && (
+          <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm backdrop-blur-md z-10 transition-all ${isExpired ? 'bg-slate-900/80 text-white' : 'bg-primary/90 text-white'}`}>
+            <Timer className="w-3.5 h-3.5" />
+            {timeLeft}
+          </div>
+        )}
         <img
           key={imgIndex}
           src={images[imgIndex]}
@@ -112,6 +118,27 @@ const ProductCard = ({ product, onClick, onFavorite, onTrack, isFavorite, isTrac
               <>
                 <p className="text-[10px] text-emerald-500 font-bold uppercase">Analyzed Lowest</p>
                 <p className="text-lg font-black text-slate-900">
+                  {Math.round(analyzedPrice).toLocaleString()} TL
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Price</p>
+                <p className="text-sm font-bold text-slate-400">Run analysis</p>
+              </>
+            )}
+          </div>
+          <button className="text-xs font-bold text-primary hover:underline">
+            View Details
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProductCard;
+t-lg font-black text-slate-900">
                   {Math.round(analyzedPrice).toLocaleString()} TL
                 </p>
               </>

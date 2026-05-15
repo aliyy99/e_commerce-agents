@@ -1,5 +1,5 @@
 """
-ShopSage AI - Tracking System
+Techno Track AI - Tracking System
 POST /track
 """
 import logging
@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from ..models.requests import TrackProductRequest
 
-logger = logging.getLogger("shopsage.routes.tracking")
+logger = logging.getLogger("technotrack.routes.tracking")
 router = APIRouter(prefix="/tracking", tags=["Tracking"])
 
 

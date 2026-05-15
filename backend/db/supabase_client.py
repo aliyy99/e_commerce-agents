@@ -1,5 +1,5 @@
 """
-ShopSage AI - Supabase Client Singleton
+Techno Track AI - Supabase Client Singleton
 Provides a shared, async-ready Supabase client for all DB operations.
 """
 import logging
@@ -7,7 +7,7 @@ from functools import lru_cache
 from supabase import create_client, Client
 from ..config import settings
 
-logger = logging.getLogger("shopsage.db")
+logger = logging.getLogger("technotrack.db")
 
 
 @lru_cache(maxsize=1)
@@ -108,12 +108,12 @@ async def save_generated_image(product_name: str, image_bytes: bytes) -> str:
     safe_name = re.sub(r"[^a-z0-9_]", "_", product_name.lower())
     path = f"generated/{safe_name}_{int(time.time())}.png"
 
-    db.storage.from_("shopsage-images").upload(
+    db.storage.from_("technotrack-images").upload(
         path=path,
         file=image_bytes,
         file_options={"content-type": "image/png"},
     )
-    public_url = db.storage.from_("shopsage-images").get_public_url(path)
+    public_url = db.storage.from_("technotrack-images").get_public_url(path)
     logger.info("Image uploaded to Supabase Storage → %s", public_url)
     return public_url
 

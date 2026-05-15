@@ -1,5 +1,5 @@
 """
-ShopSage AI - Pydantic Request Models
+Techno Track AI - Pydantic Request Models
 Validates all incoming data before it reaches any agent.
 """
 from __future__ import annotations

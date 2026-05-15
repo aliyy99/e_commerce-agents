@@ -37,7 +37,7 @@ from ..services.gemini_client import (
     retry_on_non_auth_error,
 )
 
-logger = logging.getLogger("shopsage.analyst_agent")
+logger = logging.getLogger("technotrack.analyst_agent")
 
 
 # ─────────────────────────────────────────────────────────────

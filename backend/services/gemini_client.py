@@ -12,7 +12,7 @@ import google.generativeai as genai
 
 from ..config import get_gemini_api_key
 
-logger = logging.getLogger("shopsage.services.gemini_client")
+logger = logging.getLogger("technotrack.services.gemini_client")
 
 _AUTH_ERROR_MARKERS = (
     "API_KEY_INVALID",

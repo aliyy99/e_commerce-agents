@@ -1,5 +1,5 @@
 """
-ShopSage AI - Pydantic Response Models
+Techno Track AI - Pydantic Response Models
 All agent outputs are typed here before being returned to the client.
 """
 from __future__ import annotations

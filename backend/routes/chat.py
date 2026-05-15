@@ -1,4 +1,4 @@
-"""ShopSage AI - Chat Assistant Route"""
+"""Techno Track AI - Chat Assistant Route"""
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -8,7 +8,7 @@ from ..models.requests import ChatRequest
 from ..models.responses import ChatResponse
 from ..services.gemini_proxy import generate_chat_reply
 
-logger = logging.getLogger("shopsage.routes.chat")
+logger = logging.getLogger("technotrack.routes.chat")
 router = APIRouter(tags=["Chat"])
 
 

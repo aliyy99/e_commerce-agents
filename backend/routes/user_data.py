@@ -1,5 +1,5 @@
 """
-ShopSage AI - Favorites & Price Alerts Route
+Techno Track AI - Favorites & Price Alerts Route
 Provides CRUD endpoints for user favorites and price tracking.
 Uses a mock_user_id header for auth simulation.
 """
@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from ..db import add_favorite, get_favorites, delete_favorite
 from ..db import add_price_alert, get_price_alerts, delete_price_alert
 
-logger = logging.getLogger("shopsage.routes.user_data")
+logger = logging.getLogger("technotrack.routes.user_data")
 router = APIRouter(prefix="/user", tags=["User Data"])
 
 # Default mock user — simulates auth until Supabase Auth is wired up

@@ -1,5 +1,5 @@
 /**
- * ShopSage AI - API Service Layer
+ * Techno Track AI - API Service Layer
  * Centralizes all backend communication (REST + SSE).
  * 
  * Uses native fetch() — no axios dependency needed.

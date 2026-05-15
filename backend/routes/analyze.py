@@ -1,5 +1,5 @@
 """
-ShopSage AI - Analyst Route
+Techno Track AI - Analyst Route
 POST /analyze/reviews
 """
 import logging
@@ -10,7 +10,7 @@ from ..agents.compare_agent import run_compare_agent
 from ..models.requests      import AnalystRequest, CompareRequest
 from ..models.responses     import AnalystResponse, AgentStatus, CompareResponse
 
-logger = logging.getLogger("shopsage.routes.analyze")
+logger = logging.getLogger("technotrack.routes.analyze")
 router = APIRouter(prefix="/analyze", tags=["Analyst Agent"])
 
 @router.post(

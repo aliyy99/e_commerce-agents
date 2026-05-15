@@ -1,5 +1,5 @@
 """
-ShopSage AI - Generate Style Route
+Techno Track AI - Generate Style Route
 POST /generate-style
 """
 import logging
@@ -9,7 +9,7 @@ from ..agents.visualizer_agent import run_visualizer_agent
 from ..models.requests          import StyleRequest
 from ..models.responses         import StyleResponse, AgentStatus
 
-logger = logging.getLogger("shopsage.routes.generate_style")
+logger = logging.getLogger("technotrack.routes.generate_style")
 router = APIRouter(tags=["Visualizer Agent"])
 
 

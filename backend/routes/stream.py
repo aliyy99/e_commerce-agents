@@ -1,5 +1,5 @@
 """
-ShopSage AI - Server-Sent Events (SSE) Streaming Route
+Techno Track AI - Server-Sent Events (SSE) Streaming Route
 GET /api/v1/stream/pipeline/{session_id}
 
 Provides a real-time "Agentic Logs" feed to the frontend.
@@ -21,7 +21,7 @@ from typing import AsyncGenerator
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-logger = logging.getLogger("shopsage.routes.stream")
+logger = logging.getLogger("technotrack.routes.stream")
 router = APIRouter(prefix="/stream", tags=["SSE Streaming"])
 
 

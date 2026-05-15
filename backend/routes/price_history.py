@@ -1,5 +1,5 @@
 """
-ShopSage AI - Price History Route
+Techno Track AI - Price History Route
 POST /api/v1/price-history
 
 Uses Gemini 2.5 Flash (with 2.0 Flash fallback) grounded by Google Search to
@@ -30,7 +30,7 @@ from ..services.gemini_client import (
     raise_if_auth_error,
 )
 
-logger = logging.getLogger("shopsage.routes.price_history")
+logger = logging.getLogger("technotrack.routes.price_history")
 router = APIRouter(prefix="/price-history", tags=["Price History"])
 
 

@@ -1,4 +1,4 @@
-"""ShopSage AI - DB package"""
+"""Techno Track AI - DB package"""
 from .supabase_client import (
     get_supabase,
     upsert_analysis_result,

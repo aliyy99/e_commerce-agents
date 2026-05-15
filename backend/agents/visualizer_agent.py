@@ -30,7 +30,7 @@ from ..services.gemini_client import (
     raise_if_auth_error,
 )
 
-logger = logging.getLogger("shopsage.visualizer_agent")
+logger = logging.getLogger("technotrack.visualizer_agent")
 
 # ─────────────────────────────────────────────────────────────
 # Prompt templates per category

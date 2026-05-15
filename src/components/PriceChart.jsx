@@ -60,8 +60,8 @@ const PriceChart = ({ points = [], currency = 'TRY' }) => {
 
   const view = useMemo(() => {
     const width = 760;
-    const height = 360;
-    const padding = { top: 28, right: 36, bottom: 56, left: 72 };
+    const height = 480;
+    const padding = { top: 48, right: 36, bottom: 56, left: 72 };
     const innerW = width - padding.left - padding.right;
     const innerH = height - padding.top - padding.bottom;
 

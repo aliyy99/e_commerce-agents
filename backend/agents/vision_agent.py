@@ -31,7 +31,7 @@ from ..services.gemini_client import (
     retry_on_non_auth_error,
 )
 
-logger = logging.getLogger("shopsage.vision_agent")
+logger = logging.getLogger("technotrack.vision_agent")
 
 # ─────────────────────────────────────────────────────────────
 # Prompt template

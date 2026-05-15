@@ -1,5 +1,5 @@
 """
-ShopSage AI - Vision Route
+Techno Track AI - Vision Route
 POST /vision/analyze-image
 """
 import logging
@@ -9,7 +9,7 @@ from ..agents.vision_agent import run_vision_agent
 from ..models.requests     import VisionRequest
 from ..models.responses    import VisionResponse, AgentStatus
 
-logger = logging.getLogger("shopsage.routes.vision")
+logger = logging.getLogger("technotrack.routes.vision")
 router = APIRouter(prefix="/vision", tags=["Vision Agent"])
 
 

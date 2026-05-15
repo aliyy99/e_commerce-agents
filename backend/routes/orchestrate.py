@@ -1,5 +1,5 @@
 """
-ShopSage AI - Orchestrator Route
+Techno Track AI - Orchestrator Route
 POST /orchestrate
 """
 import logging
@@ -9,7 +9,7 @@ from ..agents.orchestrator  import orchestrate, manager
 from ..models.requests      import OrchestrateRequest
 from ..models.responses     import OrchestrateResponse, AgentStatus
 
-logger = logging.getLogger("shopsage.routes.orchestrate")
+logger = logging.getLogger("technotrack.routes.orchestrate")
 router = APIRouter(tags=["Orchestrator"])
 
 

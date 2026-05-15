@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════
--- ShopSage AI  –  Supabase Database Schema
+-- Techno Track AI  –  Supabase Database Schema
 -- Run this in: Supabase Dashboard → SQL Editor
 -- ═══════════════════════════════════════════════════════════
 
@@ -71,17 +71,17 @@ CREATE INDEX IF NOT EXISTS idx_price_alerts_product
 
 
 -- ─────────────────────────────────────────────────────────
--- Storage bucket: shopsage-images
+-- Storage bucket: technotrack-images
 -- Stores Visualizer Agent generated images.
 -- ─────────────────────────────────────────────────────────
 -- Run via Supabase Dashboard > Storage > New Bucket:
---   Name: shopsage-images
+--   Name: technotrack-images
 --   Public: true
 --   Allowed MIME types: image/png, image/jpeg, image/webp
 
 -- Or via SQL (Supabase Storage API):
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('shopsage-images', 'shopsage-images', true)
+VALUES ('technotrack-images', 'technotrack-images', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────

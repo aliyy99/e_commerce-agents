@@ -21,7 +21,7 @@ from ..services.gemini_client import (
     retry_on_non_auth_error,
 )
 
-logger = logging.getLogger("shopsage.compare_agent")
+logger = logging.getLogger("technotrack.compare_agent")
 
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -57,7 +57,6 @@ Output format:
 
 ## 1) Site-Based Analysis
 ### Site: [Site Name]
-- Link: [URL]
 - Product name: [Product Name]
 - Price: [Price]
 - Star rating: [Rating]
@@ -65,14 +64,16 @@ Output format:
 - Review analysis: [Summary]
 - Data quality: [Note]
 
+[Siteye Git]([URL])
+
 ## 2) Site Comparison
 - Cheapest site: [Description]
 - Highest rated site: [Description]
 - Strongest review profile: [Description]
 - General recommendation: [Description]
 
-## 3) Brief Conclusion
-[Single paragraph clear decision support]
+## 3) Comprehensive Conclusion
+[Write a detailed and comprehensive decision-support conclusion consisting of multiple paragraphs. Base your conclusion strictly on the provided data, comparing pricing trends, review insights, and site reliabilities. Provide clear reasoning on why a specific choice is the best.]
 
 Data:
 {json_data}

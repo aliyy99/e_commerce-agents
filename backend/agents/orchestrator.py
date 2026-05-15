@@ -33,7 +33,7 @@ from ..agents.visualizer_agent import run_visualizer_agent
 from ..db import upsert_analysis_result
 from ..routes.stream import push_event
 
-logger = logging.getLogger("shopsage.orchestrator")
+logger = logging.getLogger("technotrack.orchestrator")
 
 # Basic WebSocket Manager (in a real app, this would be more robust)
 class ConnectionManager:

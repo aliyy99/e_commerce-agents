@@ -1,5 +1,5 @@
 """
-ShopSage AI - FastAPI Application Entry Point
+Techno Track AI - FastAPI Application Entry Point
 """
 import logging
 import time
@@ -18,15 +18,15 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
-logger = logging.getLogger("shopsage")
+logger = logging.getLogger("technotrack")
 
 
 # ── Lifespan (startup / shutdown hooks) ──────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("ShopSage AI backend starting up (env=%s)", settings.APP_ENV)
+    logger.info("Techno Track AI backend starting up (env=%s)", settings.APP_ENV)
     yield
-    logger.info("ShopSage AI backend shut down.")
+    logger.info("Techno Track AI backend shut down.")
 
 
 # ── FastAPI app ────────────────────────────────────────────────

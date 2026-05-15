@@ -1,4 +1,4 @@
-"""ShopSage AI - Routes package"""
+"""Techno Track AI - Routes package"""
 from .vision         import router as vision_router
 from .analyze        import router as analyze_router
 from .generate_style import router as style_router

@@ -310,7 +310,7 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="lg:col-span-8 flex flex-col gap-6 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 relative min-h-[400px] p-6"
+        className="lg:col-span-8 flex flex-col gap-6 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 relative min-h-[800px] p-6"
       >
         <div className="absolute top-6 right-6 z-10">
           <button
@@ -339,21 +339,34 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
             </button>
           </div>
         ) : analysisReport ? (
-          <div className="prose prose-slate max-w-none bg-white p-8 rounded-2xl shadow-sm border border-slate-100 overflow-y-auto max-h-[700px] custom-markdown mt-14">
+          <div className="prose prose-slate prose-lg max-w-none bg-white p-8 rounded-2xl shadow-sm border border-slate-100 overflow-y-auto max-h-[1200px] custom-markdown mt-14">
             <ReactMarkdown
               components={{
                 h1: ({node, ...props}) => <h1 className="text-3xl font-black text-slate-900 border-b border-slate-100 pb-4 mb-6" {...props} />,
-                h2: ({node, ...props}) => <h2 className="text-xl font-bold text-primary mt-8 mb-4 flex items-center gap-2" {...props} />,
-                h3: ({node, ...props}) => <h3 className="text-lg font-bold text-slate-700 mt-6 mb-3" {...props} />,
-                ul: ({node, ...props}) => <ul className="space-y-2 mb-6" {...props} />,
+                h2: ({node, ...props}) => <h2 className="text-2xl font-black text-primary mt-10 mb-5 flex items-center gap-2 border-b border-primary/10 pb-2" {...props} />,
+                h3: ({node, ...props}) => <h3 className="text-xl font-bold text-slate-800 mt-8 mb-4" {...props} />,
+                ul: ({node, ...props}) => <ul className="space-y-3 mb-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100" {...props} />,
                 li: ({node, ...props}) => (
-                  <li className="flex items-start gap-2 text-slate-600 leading-relaxed">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary/40 mt-2 shrink-0" />
-                    <span>{props.children}</span>
+                  <li className="flex items-start gap-3 text-slate-700 leading-relaxed">
+                    <span className="w-2 h-2 rounded-full bg-primary/60 mt-2 shrink-0 shadow-sm" />
+                    <span className="flex-1">{props.children}</span>
                   </li>
                 ),
-                strong: ({node, ...props}) => <strong className="font-bold text-slate-800" {...props} />,
-                p: ({node, ...props}) => <p className="text-slate-600 leading-relaxed mb-4 text-[15px]" {...props} />
+                a: ({node, ...props}) => {
+                  if (props.children === 'Siteye Git' || (Array.isArray(props.children) && props.children.join('') === 'Siteye Git') || (props.children && String(props.children).includes('Siteye Git'))) {
+                    return (
+                      <div className="flex justify-end mt-4">
+                        <a {...props} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-hover transition-colors shadow-sm no-underline group">
+                          {props.children}
+                          <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </a>
+                      </div>
+                    );
+                  }
+                  return <a {...props} className="text-primary hover:underline font-bold" target="_blank" rel="noopener noreferrer" />;
+                },
+                strong: ({node, ...props}) => <strong className="font-black text-slate-900 bg-primary/5 px-1.5 py-0.5 rounded-md" {...props} />,
+                p: ({node, ...props}) => <p className="text-slate-600 leading-relaxed mb-6 text-base" {...props} />
               }}
             >
               {analysisReport}

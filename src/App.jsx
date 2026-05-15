@@ -10,6 +10,7 @@ import PriceGraphic from './components/PriceGraphic';
 import VisionMatchModal from './components/VisionMatchModal';
 import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Toaster, toast } from 'react-hot-toast';
 import { sampleProducts, brandModels } from './data/products';
 import { analyzeImage } from './services/api';
 import { matchProductFromVision, brandKeyFromVision } from './utils/productMatch';
@@ -158,8 +159,16 @@ function App() {
   const toggleFavorite = (product) => {
     setFavorites(prev => {
       if (prev.find(p => p.id === product.id)) {
+        toast.success(`${product.name} favorilerden çıkarıldı.`, {
+          icon: '💔',
+          style: { borderRadius: '10px', background: '#333', color: '#fff' }
+        });
         return prev.filter(p => p.id !== product.id);
       }
+      toast.success(`${product.name} favorilere eklendi!`, {
+        icon: '❤️',
+        style: { borderRadius: '10px', background: '#333', color: '#fff' }
+      });
       return [...prev, product];
     });
   };
@@ -241,6 +250,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background text-slate-900 font-sans selection:bg-primary/20">
+      <Toaster position="bottom-right" reverseOrder={false} toastOptions={{ duration: 3000 }} />
       <Sidebar activePage={currentPage} onNavigate={(page) => {
         setCurrentPage(page);
         if (page === 'dashboard') setSelectedProduct(null);
@@ -543,50 +553,117 @@ function App() {
 
             {currentPage === 'tracked' && (
               <motion.div key="tracked" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <h2 className="text-3xl font-display font-black text-slate-900">Tracked Products</h2>
+                <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                    <Bell className="w-6 h-6 fill-current" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-display font-black text-slate-900">Tracked Products</h2>
+                    <p className="text-slate-500 text-sm font-medium mt-1">
+                      {tracked.length} {tracked.length === 1 ? 'product' : 'products'} being tracked
+                    </p>
+                  </div>
+                </div>
+
                 {tracked.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {tracked.map(product => (
-                      <ProductCard 
-                        key={product.id} 
-                        product={product} 
-                        onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
-                        onFavorite={toggleFavorite}
-                        onTrack={toggleTracked}
-                        isFavorite={favorites.some(f => f.id === product.id)}
-                        isTracked={tracked.some(t => t.id === product.id)}
-                      />
+                    {tracked.map((product, idx) => (
+                      <motion.div 
+                        key={product.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.05 }}
+                      >
+                        <ProductCard 
+                          product={product} 
+                          onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
+                          onFavorite={toggleFavorite}
+                          onTrack={toggleTracked}
+                          isFavorite={favorites.some(f => f.id === product.id)}
+                          isTracked={true}
+                          trackingExpiresAt={product.trackingExpiresAt}
+                        />
+                      </motion.div>
                     ))}
                   </div>
                 ) : (
-                  <div className="glass-card p-12 text-center bg-white border-slate-100">
-                    <p className="text-slate-500">You haven't tracked any products yet.</p>
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white border border-slate-100 rounded-3xl shadow-sm"
+                  >
+                    <div className="w-24 h-24 mb-6 rounded-full bg-slate-50 flex items-center justify-center">
+                      <Bell className="w-10 h-10 text-slate-300" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 mb-2">No tracked products</h3>
+                    <p className="text-slate-500 max-w-md mb-8">
+                      Keep an eye on price drops and stock changes by tracking the products you're interested in.
+                    </p>
+                    <button 
+                      onClick={() => setCurrentPage('dashboard')}
+                      className="px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-sm hover:bg-primary-hover transition-colors"
+                    >
+                      Discover Products
+                    </button>
+                  </motion.div>
                 )}
               </motion.div>
             )}
 
             {currentPage === 'favorites' && (
               <motion.div key="favorites" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <h2 className="text-3xl font-display font-black text-slate-900">Favorites</h2>
+                <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-accent-rose/10 flex items-center justify-center text-accent-rose">
+                    <Heart className="w-6 h-6 fill-current" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-display font-black text-slate-900">My Favorites</h2>
+                    <p className="text-slate-500 text-sm font-medium mt-1">
+                      {favorites.length} {favorites.length === 1 ? 'product' : 'products'} saved for later
+                    </p>
+                  </div>
+                </div>
+
                 {favorites.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {favorites.map(product => (
-                      <ProductCard 
-                        key={product.id} 
-                        product={product} 
-                        onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
-                        onFavorite={toggleFavorite}
-                        onTrack={toggleTracked}
-                        isFavorite={favorites.some(f => f.id === product.id)}
-                        isTracked={tracked.some(t => t.id === product.id)}
-                      />
+                    {favorites.map((product, idx) => (
+                      <motion.div 
+                        key={product.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.05 }}
+                      >
+                        <ProductCard 
+                          product={product} 
+                          onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
+                          onFavorite={toggleFavorite}
+                          onTrack={toggleTracked}
+                          isFavorite={favorites.some(f => f.id === product.id)}
+                          isTracked={tracked.some(t => t.id === product.id)}
+                        />
+                      </motion.div>
                     ))}
                   </div>
                 ) : (
-                  <div className="glass-card p-12 text-center bg-white border-slate-100">
-                    <p className="text-slate-500">You haven't added any products to your favorites yet.</p>
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white border border-slate-100 rounded-3xl shadow-sm"
+                  >
+                    <div className="w-24 h-24 mb-6 rounded-full bg-slate-50 flex items-center justify-center">
+                      <Heart className="w-10 h-10 text-slate-300" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 mb-2">No favorites yet</h3>
+                    <p className="text-slate-500 max-w-md mb-8">
+                      Keep track of the products you love by clicking the heart icon on any product card.
+                    </p>
+                    <button 
+                      onClick={() => setCurrentPage('dashboard')}
+                      className="px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-sm hover:bg-primary-hover transition-colors"
+                    >
+                      Discover Products
+                    </button>
+                  </motion.div>
                 )}
               </motion.div>
             )}
@@ -605,6 +682,14 @@ function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Tracking Modal */}
+      <TrackModal 
+        isOpen={trackModalOpen} 
+        product={productToTrack} 
+        onClose={() => { setTrackModalOpen(false); setProductToTrack(null); }} 
+        onConfirm={confirmTrack} 
+      />
 
       {/* Gemini-Powered Shopping Assistant */}
       <ChatWidget contextProduct={selectedProduct} />

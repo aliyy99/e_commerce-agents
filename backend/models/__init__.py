@@ -1,4 +1,4 @@
-"""ShopSage AI - Models package"""
+"""Techno Track AI - Models package"""
 from .requests import (
     VisionRequest, AnalystRequest, StyleRequest, OrchestrateRequest,
     ImageInputType, ProductCategory

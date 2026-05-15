@@ -19,7 +19,7 @@ from typing import List
 from ..models.requests import DetectiveRequest
 from ..models.responses import DetectiveResponse, AgentStatus, StoreResult
 
-logger = logging.getLogger("shopsage.detective_agent")
+logger = logging.getLogger("technotrack.detective_agent")
 
 
 async def mock_search(query: str) -> tuple[List[StoreResult], List[str]]:

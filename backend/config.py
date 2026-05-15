@@ -1,5 +1,5 @@
 """
-ShopSage AI - Application Settings
+Techno Track AI - Application Settings
 Yüklenen ortam değişkenleri ve güvenlik yapılandırmaları.
 """
 import os

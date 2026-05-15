@@ -1,1 +1,1 @@
-"""ShopSage AI - Backend package"""
+"""Techno Track AI - Backend package"""

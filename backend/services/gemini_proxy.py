@@ -13,7 +13,7 @@ from .gemini_client import (
     raise_if_auth_error,
 )
 
-logger = logging.getLogger("shopsage.services.gemini_proxy")
+logger = logging.getLogger("technotrack.services.gemini_proxy")
 
 _CHAT_SYSTEM = """
 You are Techno Track Assistant, a highly intelligent and helpful shopping guide.
