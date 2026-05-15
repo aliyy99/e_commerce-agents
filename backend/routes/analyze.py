@@ -44,10 +44,10 @@ async def analyze_compare(body: CompareRequest) -> CompareResponse:
     summary="Deep analysis of product reviews and price history",
     description=(
         "Accepts scraped reviews and price history. "
-        "The **Analyst Agent** (Gemini Pro) detects fake reviews, identifies "
+        "The **Analyst Agent** (Gemini Flash) detects fake reviews, identifies "
         "chronic product issues, and produces a Buy / Wait / Avoid recommendation. "
-        "Gemini Pro is used here for its 1M-token context window and "
-        "multi-step reasoning capability."
+        "Flash is used here for its long-context handling on the free tier "
+        "(Pro models are paid-only on the active key)."
     ),
     status_code=status.HTTP_200_OK,
 )

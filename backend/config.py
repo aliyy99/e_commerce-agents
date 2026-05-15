@@ -26,21 +26,29 @@ class Settings:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
     # Model names (env-overridable defaults).
-    # All agents now run on Gemini 2.5 Pro; FLASH_MODEL/PRO_MODEL are kept as
-    # separate knobs so operators can split primary vs. fallback via env if
-    # desired without code changes.
-    FLASH_MODEL = os.getenv("FLASH_MODEL", "gemini-2.5-pro")
-    PRO_MODEL = os.getenv("PRO_MODEL", "gemini-2.5-pro")
-    # Vision (product scan & match) runs on Gemini 3 Flash — faster and
-    # cheaper than Pro for short structured-JSON identification calls while
-    # still strong on multimodal brand/variant disambiguation.
+    #
+    # POLICY: Pro-family models (gemini-*-pro / *-pro-preview) have ZERO free-
+    # tier quota on this key (limit=0), so every default below points to a
+    # Flash variant. Operators with a paid plan can override any of these via
+    # env vars without touching code. The "PRO_MODEL" name is retained for
+    # backwards-compat with imports — its VALUE is a Flash model.
+    FLASH_MODEL = os.getenv("FLASH_MODEL", "gemini-2.5-flash")
+    PRO_MODEL = os.getenv("PRO_MODEL", "gemini-2.5-flash")
+    # Analyst's secondary model — used only when PRO_MODEL hits its daily
+    # per-model quota. Picked from a separate model family so its quota
+    # counter is independent.
+    PRO_FALLBACK_MODEL = os.getenv("PRO_FALLBACK_MODEL", "gemini-2.5-flash-lite")
+    # Multi-site product comparison (CompareAgent). Two-tier with no per-model
+    # retries keeps the worst case at 2 API calls so a limited quota lasts.
+    COMPARE_MODEL = os.getenv("COMPARE_MODEL", "gemini-3-flash-preview")
+    COMPARE_FALLBACK_MODEL = os.getenv("COMPARE_FALLBACK_MODEL", "gemini-2.5-flash")
+    # Vision (product scan & match) — multimodal Flash is strong on brand/
+    # variant disambiguation.
     VISION_MODEL = os.getenv("VISION_MODEL", "gemini-3-flash-preview")
-    VISION_FALLBACK_MODEL = os.getenv("VISION_FALLBACK_MODEL", "gemini-2.5-pro")
-    # Chat primary defaults to Gemini 3 Flash — it returns sub-second replies
-    # and (unlike 2.5-pro) is available on Google AI's free tier so the chat
-    # endpoint doesn't die with 429 quota errors. CHAT_FALLBACK_MODEL is a
+    VISION_FALLBACK_MODEL = os.getenv("VISION_FALLBACK_MODEL", "gemini-2.5-flash")
+    # Chat: sub-second replies, free-tier safe. CHAT_FALLBACK_MODEL is a
     # second Flash family member so a single model's transient failure still
-    # leaves an answer-capable fallback before we resort to Pro.
+    # leaves an answer-capable fallback.
     CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-3-flash-preview")
     CHAT_FALLBACK_MODEL = os.getenv("CHAT_FALLBACK_MODEL", "gemini-2.5-flash-lite")
     IMAGE_MODEL = os.getenv("IMAGE_MODEL", "imagen-3.0-generate-002")

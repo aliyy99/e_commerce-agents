@@ -1,0 +1,11 @@
+INFO:     Started server process [22848]
+INFO:     Waiting for application startup.
+2026-05-15T17:53:54 [INFO] shopsage: ShopSage AI backend starting up (env=development)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-05-15T17:53:54 [INFO] shopsage.routes.orchestrate: POST /orchestrate (query='Sony WH-1000XM5', session_id=None)
+2026-05-15T17:53:54 [INFO] shopsage.detective_agent: DetectiveAgent \u2192 starting (keywords='Sony WH-1000XM5')
+2026-05-15T17:53:56 [INFO] shopsage.analyst_agent: AnalystAgent \u2192 starting (product=Sony WH-1000XM5, reviews=10)
+2026-05-15T17:53:56 [WARNING] shopsage.analyst_agent: AnalystAgent: gemini-2.5-flash rate-limited, trying fallback.
+2026-05-15T17:54:01 [INFO] shopsage.orchestrator: Orchestrator \u2192 done  agents=['detective_agent', 'analyst_agent']  duration=6954ms
+INFO:     127.0.0.1:11190 - "POST /api/v1/orchestrate HTTP/1.1" 200 OK

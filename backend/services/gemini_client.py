@@ -21,6 +21,13 @@ _AUTH_ERROR_MARKERS = (
     "PERMISSION_DENIED",
 )
 
+_RATE_LIMIT_MARKERS = (
+    "429",
+    "RESOURCE_EXHAUSTED",
+    "exceeded your current quota",
+    "rate limit",
+)
+
 _last_configured_key: str | None = None
 
 
@@ -67,8 +74,19 @@ def raise_if_auth_error(exc: BaseException) -> None:
         raise GeminiAuthError(_AUTH_USER_MESSAGE) from exc
 
 
+def is_rate_limit_error(exc: BaseException) -> bool:
+    """True if ``exc`` looks like a quota / rate-limit failure."""
+    message = str(exc)
+    return any(marker in message for marker in _RATE_LIMIT_MARKERS)
+
+
 def retry_on_non_auth_error(retry_state) -> bool:
-    """Tenacity predicate: retry only on real, non-auth exceptions.
+    """Tenacity predicate: retry only on transient, non-auth, non-quota errors.
+
+    Skips:
+      • Auth errors — the key is bad, retrying won't help.
+      • Quota / 429 errors — retrying inside a few seconds just burns more
+        of the (already-exhausted) quota.
 
     Returning True on success (because ``isinstance(None, GeminiAuthError)``
     is False) causes tenacity to schedule pointless retries and ultimately
@@ -80,4 +98,8 @@ def retry_on_non_auth_error(retry_state) -> bool:
     exc = retry_state.outcome.exception()
     if exc is None:
         return False
-    return not isinstance(exc, GeminiAuthError)
+    if isinstance(exc, GeminiAuthError):
+        return False
+    if is_rate_limit_error(exc):
+        return False
+    return True

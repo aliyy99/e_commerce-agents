@@ -1,13 +1,15 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║             ANALYST AGENT  –  Gemini 2.5 Pro                ║
+║             ANALYST AGENT  –  Gemini Flash                  ║
 ╠══════════════════════════════════════════════════════════════╣
-║  WHY PRO?                                                    ║
-║  ▸ 1M-token context window: ingests thousands of reviews     ║
+║  Model: ``settings.PRO_MODEL`` (free-tier-safe Flash variant) ║
+║  ▸ Large context window: ingests thousands of reviews        ║
 ║    + full price history in a single request                  ║
-║  ▸ Multi-step reasoning: detects fake reviews, identifies    ║
-║    recurring hardware/software flaws, weighs contradictions  ║
+║  ▸ Detects fake reviews, identifies recurring hardware /     ║
+║    software flaws, weighs contradictions                     ║
 ║  ▸ Structured output mode for reliable JSON extraction       ║
+║  NOTE: Pro-family models are paid-tier only on this key      ║
+║  (limit=0 on free tier), so the default routes to Flash.     ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 from __future__ import annotations
@@ -28,6 +30,7 @@ from ..models.responses import (
     BuyStrategy, ReviewInsight, PriceTrend,
 )
 from ..services.gemini_client import (
+    is_rate_limit_error,
     GeminiAuthError,
     configure_gemini_client,
     raise_if_auth_error,
@@ -129,14 +132,15 @@ async def _call_pro_analyst(
     reviews: List[str],
     price_history: List[PricePoint],
     locale: str,
+    model_name: str | None = None,
 ) -> dict:
     """
     AGENT: Analyst Agent
-    Sends all reviews + price history to Gemini Pro in a single mega-prompt.
-
-    WHY PRO: The analyst request can contain 5,000+ reviews. Gemini Pro's
-    1M-token context window and multi-step chain-of-thought reasoning ensure
-    accurate fake detection and nuanced buy/wait recommendations.
+    Sends all reviews + price history to Gemini (model from ``settings.PRO_MODEL``)
+    in a single mega-prompt. The analyst request can contain 5,000+ reviews
+    and the Flash model's long-context handling is sufficient for fake-review
+    detection and buy/wait reasoning. The "PRO_MODEL" setting name is kept for
+    backwards-compat — its value points to a free-tier Flash model.
 
     Args:
         product_name:  Display name for the product.
@@ -156,9 +160,9 @@ async def _call_pro_analyst(
     )
 
     configure_gemini_client()
-    # WHY PRO: Complex reasoning over long-context inputs (reviews + price trend)
+    resolved_model = model_name or settings.PRO_MODEL
     pro = genai.GenerativeModel(
-        model_name=settings.PRO_MODEL,
+        model_name=resolved_model,
         system_instruction=_ANALYST_SYSTEM.format(locale=locale),
     )
     prompt = _ANALYST_PROMPT.format(
@@ -173,6 +177,9 @@ async def _call_pro_analyst(
             generation_config=genai.GenerationConfig(
                 temperature=0.2,        # Low temp for deterministic analysis
                 max_output_tokens=2048, # Enough for detailed JSON output
+                # Strict JSON mode — Flash sometimes emits trailing commas or
+                # unescaped newlines that break a plain ``json.loads``.
+                response_mime_type="application/json",
             ),
         )
     except Exception as err:
@@ -181,15 +188,20 @@ async def _call_pro_analyst(
     raw_text = (getattr(response, "text", "") or "").strip()
     if not raw_text:
         raise ValueError("Analyst model returned empty text.")
-    # Tolerate markdown fencing even though the prompt forbids it.
+    # strict=False allows raw newlines/tabs inside JSON string values, which
+    # Gemini occasionally produces even in JSON-mime mode.
+    try:
+        return json.loads(raw_text, strict=False)
+    except json.JSONDecodeError:
+        pass
     fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL | re.IGNORECASE)
     if fenced:
-        return json.loads(fenced.group(1))
+        return json.loads(fenced.group(1), strict=False)
     first = raw_text.find("{")
     last = raw_text.rfind("}")
     if first != -1 and last != -1 and last > first:
-        return json.loads(raw_text[first : last + 1])
-    return json.loads(raw_text)
+        return json.loads(raw_text[first : last + 1], strict=False)
+    return json.loads(raw_text, strict=False)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -197,8 +209,8 @@ async def _call_pro_analyst(
 # ─────────────────────────────────────────────────────────────
 async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> AnalystResponse:
     """
-    AGENT: Analyst Agent  (Gemini 2.5 Pro)
-    ──────────────────────────────────────
+    AGENT: Analyst Agent  (Gemini Flash via ``settings.PRO_MODEL``)
+    ──────────────────────────────────────────────────────────────
     Analyzes scraped reviews and price history to produce:
       • Fake review percentage estimate
       • Chronic product issue list
@@ -207,8 +219,8 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
       • Buy / Wait / Avoid recommendation
       • Plain-language AI summary and Final Strategy
 
-    This agent always uses Gemini 2.5 Pro — deep multi-step analysis
-    over thousands of review tokens requires Pro's long-context reasoning.
+    Model is resolved from ``settings.PRO_MODEL``; defaults to a free-tier
+    Flash variant because Pro models have zero free quota on the active key.
 
     Args:
         request: Validated AnalystRequest.
@@ -222,20 +234,46 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
     )
 
     if emit_status:
-        await emit_status("Analyst Agent interpreting data (Gemini 2.5 Pro)...")
+        await emit_status(f"Analyst Agent interpreting data ({settings.PRO_MODEL})...")
 
     # Pre-compute price trend (synchronous, cheap)
     price_trend = _compute_price_trend(request.price_history)
 
-    try:
-        data = await _call_pro_analyst(
-            product_name=request.product_name,
-            reviews=request.reviews,
-            price_history=request.price_history,
-            locale=request.locale,
-        )
-    except Exception as err:
-        logger.error("AnalystAgent failed: %s", err)
+    # Cascade: primary model first, then fallback (different model family so
+    # daily-quota counters are independent). At most 2 successful API calls.
+    candidate_models = list(dict.fromkeys([
+        settings.PRO_MODEL,
+        settings.PRO_FALLBACK_MODEL,
+    ]))
+    data: dict | None = None
+    used_model: str | None = None
+    last_err: Exception | None = None
+    for model_name in candidate_models:
+        try:
+            data = await _call_pro_analyst(
+                product_name=request.product_name,
+                reviews=request.reviews,
+                price_history=request.price_history,
+                locale=request.locale,
+                model_name=model_name,
+            )
+            used_model = model_name
+            break
+        except Exception as err:
+            last_err = err
+            # Auth errors are terminal — no point trying the fallback model.
+            try:
+                raise_if_auth_error(err)
+            except GeminiAuthError:
+                raise
+            if is_rate_limit_error(err):
+                logger.warning("AnalystAgent: %s rate-limited, trying fallback.", model_name)
+                continue
+            logger.warning("AnalystAgent: %s failed (%s), trying fallback.", model_name, err)
+            continue
+
+    if data is None:
+        logger.error("AnalystAgent failed on all candidates: %s", last_err)
         return AnalystResponse(
             status=AgentStatus.ERROR,
             product_id=request.product_id,
@@ -250,7 +288,7 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
             price_trend=price_trend,
             ai_summary="An error occurred during analysis.",
             final_recommendation="Analysis could not be performed.",
-            error_detail=str(err),
+            error_detail=str(last_err),
         )
 
     if emit_status:
@@ -280,6 +318,8 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
 
     return AnalystResponse(
         status=AgentStatus.SUCCESS,
+        agent=f"analyst_agent ({used_model})",
+        model_used=used_model,
         product_id=request.product_id,
         product_name=request.product_name,
         strategy=strategy,

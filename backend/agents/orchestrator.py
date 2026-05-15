@@ -160,7 +160,8 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     if analyst_req:
         agents_invoked.append("analyst_agent")
         review_count = len(analyst_req.reviews)
-        await emit_status(sid, "Analyst", f"Gemini 2.5 Pro is processing {review_count}+ reviews for sentiment analysis...")
+        from ..config import settings as _s
+        await emit_status(sid, "Analyst", f"{_s.PRO_MODEL} is processing {review_count}+ reviews for sentiment analysis...")
         
         async def emit_ana(msg): await emit_status(sid, "Analyst", msg)
         try:

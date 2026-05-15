@@ -415,7 +415,7 @@ async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, A
 
 
 @retry(
-    stop=stop_after_attempt(2),
+    stop=stop_after_attempt(1),
     wait=wait_exponential(multiplier=1, min=2, max=8),
     reraise=True,
     retry=retry_on_non_auth_error,
@@ -519,14 +519,16 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
         lowest_price_site = None
 
     prompt = _COMPARE_PROMPT.format(json_data=json.dumps(scraped, ensure_ascii=False, indent=2))
-    model_candidates = list(dict.fromkeys([settings.FLASH_MODEL, settings.PRO_MODEL]))
+    primary_model = settings.COMPARE_MODEL
+    fallback_model = settings.COMPARE_FALLBACK_MODEL
+    model_candidates = list(dict.fromkeys([primary_model, fallback_model]))
 
     last_error: Exception | None = None
     report: str | None = None
     for model_name in model_candidates:
         try:
             report = _generate_report(model_name, prompt, request.locale)
-            if model_name != settings.FLASH_MODEL:
+            if model_name != primary_model:
                 logger.warning("CompareAgent -> fallback model used: %s", model_name)
             break
         except GeminiAuthError as err:

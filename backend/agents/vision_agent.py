@@ -173,15 +173,15 @@ async def _call_pro_vision_fallback(image_part: dict, locale: str) -> dict:
 # ─────────────────────────────────────────────────────────────
 async def run_vision_agent(request: VisionRequest) -> VisionResponse:
     """
-    AGENT: Vision Agent  (Gemini 3 Flash → Gemini 2.5 Pro fallback)
-    ───────────────────────────────────────────────────────────────
-    Main entry-point. Accepts a VisionRequest (Base64),
-    prepares the image part, calls Gemini 3 Flash as the primary identifier,
-    and falls back to Gemini 2.5 Pro when needed.
+    AGENT: Vision Agent  (Gemini 3 Flash → Gemini 2.5 Flash fallback)
+    ────────────────────────────────────────────────────────────────
+    Main entry-point. Accepts a VisionRequest (Base64), prepares the image
+    part, calls the primary vision model (``settings.VISION_MODEL``), and
+    falls back to ``settings.VISION_FALLBACK_MODEL`` when needed.
 
     Fallback logic:
-      Primary call fails / confidence < 0.4    →  Pro fallback is tried once.
-      Pro fallback also fails                  →  Returns ERROR status.
+      Primary call fails / confidence < 0.4    →  Fallback model tried once.
+      Fallback also fails                      →  Returns ERROR status.
 
     Args:
         request: Validated VisionRequest from the route handler.

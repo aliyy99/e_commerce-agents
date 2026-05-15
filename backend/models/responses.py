@@ -91,11 +91,13 @@ class PriceTrend(BaseModel):
 
 class AnalystResponse(BaseModel):
     """
-    Structured output from the Analyst Agent (Gemini Pro).
-    Provides deep product intelligence from reviews and price history.
+    Structured output from the Analyst Agent. The default ``model_used`` /
+    ``agent`` strings are overwritten by the caller with the actually-invoked
+    model name; the defaults exist only for back-compat with consumers that
+    didn't pass one.
     """
     status:        AgentStatus
-    agent:         str           = "analyst_agent (gemini-2.5-pro)"
+    agent:         str           = "analyst_agent (gemini-2.5-flash)"
     product_id:    str
     product_name:  str
     strategy:      BuyStrategy
@@ -104,7 +106,7 @@ class AnalystResponse(BaseModel):
     price_trend:   PriceTrend
     ai_summary:    str           = Field(..., description="Plain-language buying recommendation.")
     final_recommendation: str    = Field(..., description="Detailed Buy/Wait reasoning.")
-    model_used:    str           = "gemini-2.5-pro"
+    model_used:    str           = "gemini-2.5-flash"
     error_detail:  Optional[str] = None
 
 

@@ -20,7 +20,7 @@ router = APIRouter(prefix="/vision", tags=["Vision Agent"])
     description=(
         "Accepts a Base64-encoded image from upload/camera input. "
         "The **Vision Agent** (Gemini 3 Flash) identifies the product, brand, "
-        "and technical specifications. Falls back to Gemini 2.5 Pro with an "
+        "and technical specifications. Falls back to Gemini 2.5 Flash with an "
         "expanded token budget if the initial confidence is below 0.4."
     ),
     status_code=status.HTTP_200_OK,

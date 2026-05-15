@@ -149,7 +149,7 @@ const PriceGraphic = ({
                 </div>
                 <h3 className="text-2xl font-display font-black text-slate-900 mb-2">Comprehensive Price Analysis</h3>
                 <p className="text-sm text-slate-500 max-w-md text-center leading-relaxed">
-                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, powered by Gemini 3.1 Pro and live Google Search data.
+                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, powered by Gemini 2.5 Flash and live Google Search data.
                 </p>
               </div>
             )}

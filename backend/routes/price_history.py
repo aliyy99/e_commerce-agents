@@ -2,9 +2,14 @@
 ShopSage AI - Price History Route
 POST /api/v1/price-history
 
-Uses Gemini 3 Pro (with 2.5 Pro fallback) grounded by Google Search to fetch
-approximate last-12-month monthly prices for a given product in Turkey, then
-returns a structured JSON payload the frontend can render as a chart.
+Uses Gemini 2.5 Flash (with 2.0 Flash fallback) grounded by Google Search to
+fetch approximate last-12-month monthly prices for a given product in Turkey,
+then returns a structured JSON payload the frontend can render as a chart.
+
+Implementation note: calls the Gemini REST API directly via ``httpx`` instead
+of the google-generativeai SDK, because SDK 0.8.x's Tool proto exposes only
+``google_search_retrieval`` — but Gemini 2.5+ models reject that field and
+require the modern ``google_search`` tool form.
 """
 from __future__ import annotations
 
@@ -14,11 +19,11 @@ import re
 from datetime import datetime
 from typing import List, Optional
 
-import google.generativeai as genai
+import httpx
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from ..config import settings
+from ..config import get_gemini_api_key, settings
 from ..services.gemini_client import (
     GeminiAuthError,
     configure_gemini_client,
@@ -91,11 +96,11 @@ def _last_12_months(now: Optional[datetime] = None) -> List[dict]:
 
 # ── Prompting ─────────────────────────────────────────────────────────────
 _PRICE_HISTORY_SYSTEM = """
-You are a senior e-commerce price analyst agent. When a search tool is
-available, use it to gather approximate historical monthly prices for the
-requested product. When no search tool is available, rely on your training
-knowledge and produce best-effort plausible monthly estimates — do NOT refuse
-or apologize about missing data.
+You are a senior e-commerce price analyst agent for the Turkish market. The
+Google Search tool is ALWAYS available to you and you MUST call it at least
+once at the start of every request before writing your answer — Turkish retail
+prices move with high inflation, and your training data is stale. Treat any
+internal estimate without a corroborating search result as low confidence.
 
 Return ONLY the requested JSON structure — no commentary, no markdown fence,
 no extra text. All text fields must be written in English. The output MUST be
@@ -104,14 +109,12 @@ a single, syntactically valid JSON object.
 
 
 def _build_prompt(product_name: str, currency: str, months: List[dict]) -> str:
-    month_lines = "\n".join(f"- {m['month']}  ({m['label']})" for m in months)
-    schema_months = [
-        {"month": m["month"], "label": m["label"], "price": 0, "note": "short english note"}
-        for m in months
-    ]
+    month_list = ", ".join(m["month"] for m in months)
     schema = {
         "currency": currency,
-        "points": schema_months,
+        "points": [
+            {"month": "YYYY-MM", "label": "Mon YYYY", "price": 0, "note": ""}
+        ],
         "summary": "2-3 sentence English price commentary",
         "trend": "downward|upward|stable|volatile",
         "lowest": 0,
@@ -119,44 +122,61 @@ def _build_prompt(product_name: str, currency: str, months: List[dict]) -> str:
         "average": 0,
     }
     return f"""
-Research the approximate monthly retail price of the following product in the
-Turkish market for the past 12 months.
+Research the monthly retail price of this product in the Turkish market over
+the last 12 months.
 
 Product: {product_name}
-Target market: Turkey
+Market: Turkey
 Currency: {currency}
+Months (oldest → newest, output one entry per month): {month_list}
 
-Months to analyze (oldest → newest):
-{month_lines}
+REQUIRED RESEARCH STEP — you MUST call the Google Search tool BEFORE writing
+any JSON. Run AT LEAST these queries (run more if you have low confidence):
+  1. "{product_name} fiyat" site:hepsiburada.com
+  2. "{product_name} fiyat" site:trendyol.com
+  3. "{product_name} Akakçe fiyat geçmişi"
+  4. "{product_name} cimri fiyat geçmişi"
+  5. "{product_name} price history Turkey"
+Also try queries on mediamarkt.com.tr, vatanbilgisayar.com, amazon.com.tr.
+Do NOT skip the search even if you think you already know the price — pricing
+in Turkey moves with inflation and your training data may be stale.
 
-Steps:
-1. Search the major Turkish e-commerce sites — Hepsiburada, Trendyol,
-   MediaMarkt, Vatan Bilgisayar, Amazon Turkey, Akakçe — with queries such as
-   "{product_name} price", "{product_name} price history",
-   "{product_name} Akakçe fiyat geçmişi".
-2. For each month, decide the average list price in TRY during that month.
-   For months without direct data, interpolate reasonably from the nearest
-   months.
-3. If the product had not launched yet for a given month, still produce a
-   plausible estimate (back-projected from the launch price or the previous
-   generation). You MUST output a price for every one of the 12 months.
-4. Output prices as plain numbers only (integers or two decimal places). Do
-   not include currency symbols.
-5. All natural-language fields (summary, note) must be written in English.
+After searching:
+- For months with direct evidence in the search results, use the observed
+  Turkish e-commerce price (preferably the lowest list price seen that month).
+- For months WITHOUT direct evidence, interpolate from the nearest known
+  prices. If the product had not launched yet, back-project from the launch
+  price or the previous generation.
+- You MUST output exactly one price per month listed above (12 entries).
 
-Output: ONLY the filled JSON below. No markdown fences, no comments, no
-trailing text.
+Output rules:
+- ONLY a single valid JSON object matching the schema below. No markdown
+  fences, no commentary, no trailing text.
+- All text fields in English. Keep ``note`` ≤ 6 words; omit if nothing useful
+  to add. Do not repeat the same boilerplate note across months.
+- For months where you used a real search result, set ``note`` to the source
+  site name (e.g. "hepsiburada", "akakce"). For interpolated months, set
+  ``note`` to "interpolated" or omit it.
+- Prices as plain numbers (no currency symbols), integers or 2 decimals.
+- Use the exact "month" / "label" values from the list above.
 
+Schema:
 {json.dumps(schema, ensure_ascii=False, indent=2)}
 """.strip()
 
 
 # ── Gemini call ───────────────────────────────────────────────────────────
-_GENERATION_CONFIG = genai.GenerationConfig(
-    temperature=0.4,
-    top_p=0.95,
-    max_output_tokens=4096,
-)
+# Direct REST is used (instead of the google-generativeai SDK) because SDK
+# 0.8.x's Tool proto exposes only ``google_search_retrieval``, while Gemini
+# 2.5+ models require the newer ``google_search`` tool — passing it via the SDK
+# raises "Unknown field for FunctionDeclaration: google_search".
+_GENERATION_CONFIG = {
+    "temperature": 0.4,
+    "topP": 0.95,
+    # 8192 leaves headroom after the model spends tokens on grounded search +
+    # 12 monthly entries — 4096 was getting truncated mid-JSON.
+    "maxOutputTokens": 8192,
+}
 
 _SAFETY_SETTINGS = [
     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
@@ -165,25 +185,27 @@ _SAFETY_SETTINGS = [
     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
 ]
 
+_GEMINI_REST_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
-def _extract_grounding_sources(response) -> List[dict]:
+
+def _extract_grounding_sources(response: dict | None) -> List[dict]:
+    if not response:
+        return []
     try:
-        candidate = response.candidates[0]
-        meta = getattr(candidate, "grounding_metadata", None)
-        if not meta:
+        candidates = response.get("candidates") or []
+        if not candidates:
             return []
-        chunks = getattr(meta, "grounding_chunks", None) or []
+        meta = candidates[0].get("groundingMetadata") or {}
+        chunks = meta.get("groundingChunks") or []
         out: List[dict] = []
         seen = set()
         for ch in chunks[:8]:
-            web = getattr(ch, "web", None)
-            if not web:
-                continue
-            uri = getattr(web, "uri", None)
+            web = ch.get("web") or {}
+            uri = web.get("uri")
             if not uri or uri in seen:
                 continue
             seen.add(uri)
-            title = getattr(web, "title", None) or uri
+            title = web.get("title") or uri
             out.append({"title": title, "uri": uri})
         return out
     except Exception:
@@ -194,14 +216,21 @@ _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IG
 
 
 def _parse_json_payload(text: str) -> dict:
-    """Tolerant JSON extraction: handles ```json fences, surrounding prose, etc."""
+    """Tolerant JSON extraction: handles ```json fences, surrounding prose, etc.
+
+    Uses ``strict=False`` so raw newlines/tabs inside string literals (a common
+    Gemini quirk in long ``summary``/``note`` fields) don't blow up parsing.
+    """
     if not text:
         raise ValueError("Empty response.")
     text = text.strip()
 
+    def _loads(s: str) -> dict:
+        return json.loads(s, strict=False)
+
     # Direct parse first.
     try:
-        return json.loads(text)
+        return _loads(text)
     except json.JSONDecodeError:
         pass
 
@@ -209,7 +238,7 @@ def _parse_json_payload(text: str) -> dict:
     fence_match = _JSON_FENCE_RE.search(text)
     if fence_match:
         try:
-            return json.loads(fence_match.group(1))
+            return _loads(fence_match.group(1))
         except json.JSONDecodeError:
             pass
 
@@ -219,26 +248,47 @@ def _parse_json_payload(text: str) -> dict:
     if first != -1 and last > first:
         candidate = text[first : last + 1]
         try:
-            return json.loads(candidate)
+            return _loads(candidate)
         except json.JSONDecodeError as err:
             raise ValueError(f"JSON parse failed: {err}") from err
 
     raise ValueError("Could not extract JSON from response.")
 
 
-def _try_model(model_name: str, prompt: str, tool_spec):
-    """Run one (model, tool_spec) combo with Google Search grounding enabled."""
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=_PRICE_HISTORY_SYSTEM,
-        safety_settings=_SAFETY_SETTINGS,
-        tools=[tool_spec],
-    )
-    response = model.generate_content(prompt, generation_config=_GENERATION_CONFIG)
-    text = (getattr(response, "text", None) or "").strip()
+def _try_model(model_name: str, prompt: str, tool_spec: dict, api_key: str):
+    """Call Gemini REST generateContent with the given Google Search tool spec.
+
+    Bypasses the SDK because google-generativeai 0.8.x doesn't expose the
+    ``google_search`` Tool field required by Gemini 2.5+ models.
+    """
+    url = f"{_GEMINI_REST_BASE}/{model_name}:generateContent?key={api_key}"
+    body = {
+        "systemInstruction": {"parts": [{"text": _PRICE_HISTORY_SYSTEM}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "tools": [tool_spec],
+        "safetySettings": _SAFETY_SETTINGS,
+        "generationConfig": _GENERATION_CONFIG,
+    }
+    try:
+        resp = httpx.post(url, json=body, timeout=90.0)
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Gemini REST call failed (model={model_name}): {exc}") from exc
+
+    if resp.status_code != 200:
+        # Surface the API's own message so auth/quota errors are diagnosable.
+        raise RuntimeError(
+            f"Gemini REST {resp.status_code} (model={model_name}): {resp.text[:400]}"
+        )
+
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise ValueError(f"Gemini returned no candidates (model={model_name}).")
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts if isinstance(p, dict)).strip()
     if not text:
-        raise ValueError(f"Gemini returned empty response (model={model_name}).")
-    return text, response
+        raise ValueError(f"Gemini returned empty text (model={model_name}).")
+    return text, data
 
 
 def _coerce_float(value) -> Optional[float]:
@@ -293,18 +343,23 @@ def _normalize_points(
 )
 async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
     logger.info("POST /price-history product=%s", body.product_name)
+    # Refresh .env so a freshly rotated key takes effect, then resolve it for
+    # the REST call (we bypass the SDK to use the modern ``google_search`` tool).
     configure_gemini_client()
+    api_key = get_gemini_api_key()
 
     months = _last_12_months()
     prompt = _build_prompt(body.product_name, body.currency, months)
 
-    # Tight cascade: one Pro candidate, then Flash (independent quota). No
-    # ungrounded fallback — if Google Search grounding can't fire, we return
-    # 502 rather than silently serve AI-extrapolated prices the user can't
-    # distinguish from real e-commerce data.
+    # Tight cascade: one Flash candidate (free-tier, fast) + one Lite fallback.
+    # Single tool spec per model = at most 2 API calls per request to respect
+    # the limited quota. ``google_search`` is the only tool form Gemini 2.5+
+    # accepts; older ``google_search_retrieval`` returns 400 on these models.
+    # gemini-2.0-flash / *-latest aliases are on a zero-quota tier for this
+    # key, so the fallback is gemini-2.5-flash-lite (still on the free tier).
     candidate_models = list(dict.fromkeys([
-        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-3.1-pro-preview",
-        settings.VISION_MODEL,  # gemini-3-flash-preview (independent quota)
+        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
     ]))
     candidate_models = [m for m in candidate_models if m]
 
@@ -313,40 +368,26 @@ async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
     last_model = None
     parsed_payload: Optional[dict] = None
 
-    # Tool spec attempts, in order:
-    #  - {"google_search_retrieval": {}} works on Gemini 1.5 / 3 family
-    #  - {"google_search": {}} works on Gemini 2.0+ (newer SDK contract)
-    tool_attempts = [
-        {"google_search_retrieval": {}},
-        {"google_search": {}},
-    ]
+    tool_spec = {"google_search": {}}
 
     for model_name in candidate_models:
-        for tool_spec in tool_attempts:
-            try:
-                text, response = _try_model(model_name, prompt, tool_spec)
-                parsed_payload = _parse_json_payload(text)
-                last_response = response
-                last_model = model_name
-                break
-            except Exception as exc:
-                try:
-                    raise_if_auth_error(exc)
-                except GeminiAuthError as auth_err:
-                    logger.error("Price-history auth error: %s", auth_err)
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail=str(auth_err),
-                    ) from auth_err
-                logger.warning(
-                    "Price-history model failed (model=%s, tool=%s): %s",
-                    model_name,
-                    "none" if tool_spec is None else next(iter(tool_spec.keys())),
-                    exc,
-                )
-                last_error = exc
-        if parsed_payload is not None:
+        try:
+            text, response = _try_model(model_name, prompt, tool_spec, api_key)
+            parsed_payload = _parse_json_payload(text)
+            last_response = response
+            last_model = model_name
             break
+        except Exception as exc:
+            try:
+                raise_if_auth_error(exc)
+            except GeminiAuthError as auth_err:
+                logger.error("Price-history auth error: %s", auth_err)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=str(auth_err),
+                ) from auth_err
+            logger.warning("Price-history model failed (model=%s): %s", model_name, exc)
+            last_error = exc
 
     if parsed_payload is None:
         raise HTTPException(
