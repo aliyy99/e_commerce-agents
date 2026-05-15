@@ -1,10 +1,12 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import ProductAnalysis from './components/ProductAnalysis';
 import Profile from './components/Profile';
 import PipelineLoader from './components/PipelineLoader';
 import ProductCard from './components/ProductCard';
 import ChatWidget from './components/ChatWidget';
+import TrackModal, { formatDuration } from './components/TrackModal';
+import NotificationsDrawer from './components/NotificationsDrawer';
 import Campaigns from './components/Campaigns';
 import PriceGraphic from './components/PriceGraphic';
 import VisionMatchModal from './components/VisionMatchModal';
@@ -36,6 +38,23 @@ function App() {
   const [tracked, setTracked] = useState([]);
   const [analysisReports, setAnalysisReports] = useState({});
   const [priceHistoryReports, setPriceHistoryReports] = useState({});
+
+  // Track Modal State
+  const [trackModalOpen, setTrackModalOpen] = useState(false);
+  const [productToTrack, setProductToTrack] = useState(null);
+
+  // Notifications State
+  const [notifications, setNotifications] = useState([]);
+  const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
+  const notifIdRef = useRef(0);
+
+  const pushNotification = useCallback((notif) => {
+    notifIdRef.current += 1;
+    setNotifications(prev => [
+      { id: `n-${notifIdRef.current}`, createdAt: Date.now(), read: false, ...notif },
+      ...prev,
+    ]);
+  }, []);
 
   // Vision (image-search) State
   const [visionDisambiguation, setVisionDisambiguation] = useState(null); // { brand, suggestedModels, detected }
@@ -174,13 +193,73 @@ function App() {
   };
 
   const toggleTracked = (product) => {
-    setTracked(prev => {
-      if (prev.find(p => p.id === product.id)) {
-        return prev.filter(p => p.id !== product.id);
-      }
-      return [...prev, product];
+    const existing = tracked.find(p => p.id === product.id);
+    if (existing) {
+      setTracked(prev => prev.filter(p => p.id !== product.id));
+      toast.success(`${product.name} takipten çıkarıldı`, {
+        style: { borderRadius: '10px', background: '#333', color: '#fff' }
+      });
+      pushNotification({
+        type: 'track-removed',
+        title: 'Takipten çıkarıldı',
+        message: `${product.name} takip listenden kaldırıldı.`,
+      });
+      return;
+    }
+    setProductToTrack(product);
+    setTrackModalOpen(true);
+  };
+
+  const confirmTrack = ({ durationMs, label }) => {
+    if (!productToTrack || !durationMs || durationMs <= 0) return;
+    const trackingExpiresAt = Date.now() + durationMs;
+    const productName = productToTrack.name;
+    setTracked(prev => [...prev, { ...productToTrack, trackingExpiresAt }]);
+    setTrackModalOpen(false);
+    setProductToTrack(null);
+    toast.success(`${productName} ${label} boyunca takibe alındı`, {
+      style: { borderRadius: '10px', background: '#333', color: '#fff' }
+    });
+    pushNotification({
+      type: 'track-started',
+      title: 'Takip başlatıldı',
+      message: `${productName} ${label} boyunca takibe alındı.`,
     });
   };
+
+  // Expiry watcher — every 30s, remove expired tracked items and emit notifications.
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now();
+      setTracked(prev => {
+        const expired = prev.filter(p => p.trackingExpiresAt && p.trackingExpiresAt <= now);
+        if (expired.length === 0) return prev;
+        expired.forEach(p => {
+          pushNotification({
+            type: 'track-expired',
+            title: 'Takip süresi doldu',
+            message: `${p.name} ürününün takip süresi sona erdi ve listeden çıkarıldı.`,
+          });
+        });
+        return prev.filter(p => !(p.trackingExpiresAt && p.trackingExpiresAt <= now));
+      });
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [pushNotification]);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
+  const clearAllNotifications = useCallback(() => setNotifications([]), []);
+  const removeNotification = useCallback((id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+  const openNotifDrawer = useCallback(() => {
+    setNotifDrawerOpen(true);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
 
   // Extended product suggestions database (keyword -> related models/products)
   const suggestionDatabase = [
@@ -259,13 +338,11 @@ function App() {
       <main className="pl-72 relative z-10 transition-all duration-300">
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6 flex-1">
-            <h2 className="text-lg font-black text-slate-900 tracking-tight capitalize whitespace-nowrap min-w-[160px]">
-              {currentPage === 'dashboard' && (selectedProduct ? 'Product Details' : 'Discover')}
-              {currentPage === 'campaigns' && 'Campaigns'}
-              {currentPage === 'market' && 'Price Graphic'}
-              {currentPage === 'tracked' && 'Tracked Products'}
-              {currentPage === 'favorites' && 'Favorites'}
-              {currentPage === 'profile' && 'Profile'}
+            <h2
+              style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+              className="text-3xl italic font-black tracking-tight whitespace-nowrap bg-gradient-to-r from-primary via-emerald-500 to-primary bg-clip-text text-transparent drop-shadow-sm"
+            >
+              Save Your Money
             </h2>
             {currentPage === 'dashboard' && (
             <div className="relative flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-full max-w-xl focus-within:border-primary/50 transition-all group z-50">
@@ -369,9 +446,17 @@ function App() {
           </div>
 
           <div className="flex items-center gap-4 ml-6">
-            <button className="relative p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+            <button
+              onClick={openNotifDrawer}
+              className="relative p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100"
+              aria-label="Bildirimleri aç"
+            >
               <Bell className="w-5 h-5" />
-              {tracked.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white" />}
+              {notifications.filter(n => !n.read).length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center">
+                  {notifications.filter(n => !n.read).length > 9 ? '9+' : notifications.filter(n => !n.read).length}
+                </span>
+              )}
             </button>
             <button className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100">
               <Settings className="w-5 h-5" />
@@ -684,11 +769,21 @@ function App() {
       </main>
 
       {/* Tracking Modal */}
-      <TrackModal 
-        isOpen={trackModalOpen} 
-        product={productToTrack} 
-        onClose={() => { setTrackModalOpen(false); setProductToTrack(null); }} 
-        onConfirm={confirmTrack} 
+      <TrackModal
+        isOpen={trackModalOpen}
+        product={productToTrack}
+        onClose={() => { setTrackModalOpen(false); setProductToTrack(null); }}
+        onConfirm={confirmTrack}
+      />
+
+      {/* Notifications Drawer */}
+      <NotificationsDrawer
+        isOpen={notifDrawerOpen}
+        notifications={notifications}
+        onClose={() => setNotifDrawerOpen(false)}
+        onMarkAllRead={markAllNotificationsRead}
+        onClearAll={clearAllNotifications}
+        onRemove={removeNotification}
       />
 
       {/* Gemini-Powered Shopping Assistant */}
