@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Bell, ChevronLeft, ChevronRight, Timer } from 'lucide-react';
+import { Heart, Bell, ChevronLeft, ChevronRight, Timer, Tag, Percent, BellRing, ShoppingBag } from 'lucide-react';
 import { PRODUCT_IMAGE_FALLBACK } from '../utils/productImage';
 
 const formatTimeLeft = (ms) => {
@@ -13,8 +13,29 @@ const formatTimeLeft = (ms) => {
   return `${minutes}m`;
 };
 
-const ProductCard = ({ product, onClick, onFavorite, onTrack, isFavorite, isTracked, analyzedPrice = null, trackingExpiresAt = null }) => {
+const computeAverageStorePrice = (stores) => {
+  if (!Array.isArray(stores) || stores.length === 0) return null;
+  const prices = stores
+    .map((s) => Number(s?.price))
+    .filter((p) => Number.isFinite(p) && p > 0);
+  if (prices.length === 0) return null;
+  return prices.reduce((a, b) => a + b, 0) / prices.length;
+};
+
+const ProductCard = ({
+  product,
+  onClick,
+  onFavorite,
+  onTrack,
+  isFavorite,
+  isTracked,
+  analyzedPrice = null,
+  trackingExpiresAt = null,
+  priceAlert = null,
+  trackingActions = null,
+}) => {
   const images = (product.images && product.images.length > 0) ? product.images : [PRODUCT_IMAGE_FALLBACK];
+  const averagePrice = computeAverageStorePrice(product?.stores);
   const [imgIndex, setImgIndex] = useState(0);
   const [isHover, setIsHover] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -143,6 +164,13 @@ const ProductCard = ({ product, onClick, onFavorite, onTrack, isFavorite, isTrac
                   {Math.round(analyzedPrice).toLocaleString()} TL
                 </p>
               </>
+            ) : averagePrice != null ? (
+              <>
+                <p className="text-[10px] text-slate-500 font-bold uppercase">Average</p>
+                <p className="text-lg font-black text-slate-900">
+                  {Math.round(averagePrice).toLocaleString()} TL
+                </p>
+              </>
             ) : (
               <>
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Price</p>
@@ -154,6 +182,47 @@ const ProductCard = ({ product, onClick, onFavorite, onTrack, isFavorite, isTrac
             View Details
           </button>
         </div>
+
+        {(priceAlert || trackingActions) && (
+          <div className="mt-3 pt-3 border-t border-dashed border-slate-100 space-y-2">
+            {priceAlert && (
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  {priceAlert.mode === 'percent'
+                    ? <Percent className="w-3.5 h-3.5" />
+                    : <Tag className="w-3.5 h-3.5" />
+                  }
+                </span>
+                <div className="text-[11px] text-slate-600 leading-tight">
+                  <p className="font-bold text-slate-700">
+                    {priceAlert.mode === 'percent'
+                      ? `When it drops ${priceAlert.percentDrop}%`
+                      : `When it drops to ${Number(priceAlert.targetPrice).toLocaleString()} TL`}
+                  </p>
+                  {priceAlert.mode === 'percent' && priceAlert.targetPrice ? (
+                    <p className="text-slate-400">
+                      ≈ {Number(priceAlert.targetPrice).toLocaleString()} TL
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+            {trackingActions && (
+              <div className="flex flex-wrap gap-1.5">
+                {trackingActions.notify && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                    <BellRing className="w-3 h-3" /> Notify
+                  </span>
+                )}
+                {trackingActions.autoBuy && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                    <ShoppingBag className="w-3 h-3" /> Auto-Buy
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

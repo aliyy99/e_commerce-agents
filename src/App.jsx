@@ -9,6 +9,7 @@ import TrackModal, { formatDuration } from './components/TrackModal';
 import NotificationsDrawer from './components/NotificationsDrawer';
 import Campaigns from './components/Campaigns';
 import PriceGraphic from './components/PriceGraphic';
+import Orders from './components/Orders';
 import VisionMatchModal from './components/VisionMatchModal';
 import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,7 +67,7 @@ function App() {
     if (!file) return;
 
     if (!file.type?.startsWith('image/')) {
-      setVisionError('Lütfen geçerli bir görsel dosyası seçin.');
+      setVisionError('Please choose a valid image file.');
       input.value = '';
       return;
     }
@@ -77,11 +78,11 @@ function App() {
       if (typeof reader.result === 'string') {
         setUploadedImage(reader.result);
       } else {
-        setVisionError('Görsel okunamadı. Lütfen farklı bir dosya deneyin.');
+        setVisionError('Could not read the image. Please try a different file.');
       }
     };
     reader.onerror = () => {
-      setVisionError('Görsel okunamadı. Lütfen tekrar deneyin.');
+      setVisionError('Could not read the image. Please try again.');
     };
     reader.readAsDataURL(file);
     input.value = '';
@@ -178,13 +179,13 @@ function App() {
   const toggleFavorite = (product) => {
     setFavorites(prev => {
       if (prev.find(p => p.id === product.id)) {
-        toast.success(`${product.name} favorilerden çıkarıldı.`, {
+        toast.success(`${product.name} removed from favorites.`, {
           icon: '💔',
           style: { borderRadius: '10px', background: '#333', color: '#fff' }
         });
         return prev.filter(p => p.id !== product.id);
       }
-      toast.success(`${product.name} favorilere eklendi!`, {
+      toast.success(`${product.name} added to favorites!`, {
         icon: '❤️',
         style: { borderRadius: '10px', background: '#333', color: '#fff' }
       });
@@ -196,13 +197,13 @@ function App() {
     const existing = tracked.find(p => p.id === product.id);
     if (existing) {
       setTracked(prev => prev.filter(p => p.id !== product.id));
-      toast.success(`${product.name} takipten çıkarıldı`, {
+      toast.success(`${product.name} untracked`, {
         style: { borderRadius: '10px', background: '#333', color: '#fff' }
       });
       pushNotification({
         type: 'track-removed',
-        title: 'Takipten çıkarıldı',
-        message: `${product.name} takip listenden kaldırıldı.`,
+        title: 'Untracked',
+        message: `${product.name} was removed from your tracking list.`,
       });
       return;
     }
@@ -210,20 +211,28 @@ function App() {
     setTrackModalOpen(true);
   };
 
-  const confirmTrack = ({ durationMs, label }) => {
+  const confirmTrack = ({ durationMs, label, priceAlert, actions }) => {
     if (!productToTrack || !durationMs || durationMs <= 0) return;
     const trackingExpiresAt = Date.now() + durationMs;
     const productName = productToTrack.name;
-    setTracked(prev => [...prev, { ...productToTrack, trackingExpiresAt }]);
+    setTracked(prev => [
+      ...prev,
+      {
+        ...productToTrack,
+        trackingExpiresAt,
+        priceAlert: priceAlert || null,
+        trackingActions: actions || { notify: true, autoBuy: false },
+      },
+    ]);
     setTrackModalOpen(false);
     setProductToTrack(null);
-    toast.success(`${productName} ${label} boyunca takibe alındı`, {
+    toast.success(`${productName} is being tracked for ${label}`, {
       style: { borderRadius: '10px', background: '#333', color: '#fff' }
     });
     pushNotification({
       type: 'track-started',
-      title: 'Takip başlatıldı',
-      message: `${productName} ${label} boyunca takibe alındı.`,
+      title: 'Tracking started',
+      message: `${productName} is being tracked for ${label}.`,
     });
   };
 
@@ -237,8 +246,8 @@ function App() {
         expired.forEach(p => {
           pushNotification({
             type: 'track-expired',
-            title: 'Takip süresi doldu',
-            message: `${p.name} ürününün takip süresi sona erdi ve listeden çıkarıldı.`,
+            title: 'Tracking expired',
+            message: `${p.name} tracking has ended and the product was removed from your list.`,
           });
         });
         return prev.filter(p => !(p.trackingExpiresAt && p.trackingExpiresAt <= now));
@@ -449,7 +458,7 @@ function App() {
             <button
               onClick={openNotifDrawer}
               className="relative p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-100"
-              aria-label="Bildirimleri aç"
+              aria-label="Open notifications"
             >
               <Bell className="w-5 h-5" />
               {notifications.filter(n => !n.read).length > 0 && (
@@ -653,20 +662,22 @@ function App() {
                 {tracked.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {tracked.map((product, idx) => (
-                      <motion.div 
+                      <motion.div
                         key={product.id}
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: idx * 0.05 }}
                       >
-                        <ProductCard 
-                          product={product} 
+                        <ProductCard
+                          product={product}
                           onClick={(p) => { setSelectedProduct(p); setCurrentPage('dashboard'); }}
                           onFavorite={toggleFavorite}
                           onTrack={toggleTracked}
                           isFavorite={favorites.some(f => f.id === product.id)}
                           isTracked={true}
                           trackingExpiresAt={product.trackingExpiresAt}
+                          priceAlert={product.priceAlert}
+                          trackingActions={product.trackingActions}
                         />
                       </motion.div>
                     ))}
@@ -764,6 +775,12 @@ function App() {
                 <Campaigns />
               </motion.div>
             )}
+
+            {currentPage === 'orders' && (
+              <motion.div key="orders" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <Orders />
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </main>
@@ -787,7 +804,10 @@ function App() {
       />
 
       {/* Gemini-Powered Shopping Assistant */}
-      <ChatWidget contextProduct={selectedProduct} />
+      <ChatWidget
+        contextProduct={selectedProduct}
+        priceHistoryReport={selectedProduct ? priceHistoryReports?.[selectedProduct.id] : null}
+      />
 
       {/* Image-search disambiguation */}
       <VisionMatchModal

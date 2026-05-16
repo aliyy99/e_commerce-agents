@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-// BURAYA VITE_SUPABASE_URL KEY'İNİ YAPIŞTIR
+// Paste VITE_SUPABASE_URL here
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 
-// BURAYA VITE_SUPABASE_ANON_KEY KEY'İNİ YAPIŞTIR
+// Paste VITE_SUPABASE_ANON_KEY here
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Eksik Supabase ortam değişkenleri. Lütfen .env dosyasını doldurun.");
+  console.warn("Missing Supabase environment variables. Please fill in your .env file.");
 }
 
 export const supabase = createClient(supabaseUrl || "", supabaseAnonKey || "")

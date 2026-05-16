@@ -1,13 +1,14 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  Zap, 
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Zap,
   Heart,
   Shield,
   CreditCard,
   User,
-  Tag
+  Tag,
+  Package,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -17,6 +18,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
     { id: 'campaigns', label: 'Campaigns', icon: Tag },
     { id: 'market', label: 'Price Graphic', icon: TrendingUp },
     { id: 'tracked', label: 'Tracked Products', icon: Zap },
+    { id: 'orders', label: 'Orders', icon: Package },
     { id: 'favorites', label: 'Favorites', icon: Heart },
   ];
 

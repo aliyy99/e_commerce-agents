@@ -11,13 +11,13 @@ const TYPE_META = {
 const formatRelative = (ts) => {
   const diff = Date.now() - ts;
   const sec = Math.floor(diff / 1000);
-  if (sec < 60) return 'az önce';
+  if (sec < 60) return 'just now';
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} dk önce`;
+  if (min < 60) return `${min} min ago`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} saat önce`;
+  if (hr < 24) return `${hr} hr ago`;
   const day = Math.floor(hr / 24);
-  return `${day} gün önce`;
+  return `${day}d ago`;
 };
 
 const NotificationsDrawer = ({ isOpen, notifications, onClose, onMarkAllRead, onClearAll, onRemove }) => {
@@ -47,9 +47,9 @@ const NotificationsDrawer = ({ isOpen, notifications, onClose, onMarkAllRead, on
                   <Bell className="w-5 h-5 fill-current" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900">Bildirimler</h3>
+                  <h3 className="text-lg font-black text-slate-900">Notifications</h3>
                   <p className="text-xs font-medium text-slate-500">
-                    {unreadCount > 0 ? `${unreadCount} okunmamış` : 'Tümü okundu'}
+                    {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
                   </p>
                 </div>
               </div>
@@ -66,7 +66,7 @@ const NotificationsDrawer = ({ isOpen, notifications, onClose, onMarkAllRead, on
                   className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  Tümünü Okundu İşaretle
+                  Mark all as read
                 </button>
                 <div className="flex-1" />
                 <button
@@ -74,7 +74,7 @@ const NotificationsDrawer = ({ isOpen, notifications, onClose, onMarkAllRead, on
                   className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-rose-500 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Temizle
+                  Clear all
                 </button>
               </div>
             )}
@@ -85,9 +85,9 @@ const NotificationsDrawer = ({ isOpen, notifications, onClose, onMarkAllRead, on
                   <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center mb-4">
                     <Sparkles className="w-8 h-8 text-slate-300" />
                   </div>
-                  <h4 className="text-base font-black text-slate-900 mb-1">Henüz bildirim yok</h4>
+                  <h4 className="text-base font-black text-slate-900 mb-1">No notifications yet</h4>
                   <p className="text-xs text-slate-500 max-w-[220px]">
-                    Bir ürünü takibe aldığında veya süresi bittiğinde burada görünür.
+                    When you track a product or its tracking expires, you'll see it here.
                   </p>
                 </div>
               ) : (
@@ -114,7 +114,7 @@ const NotificationsDrawer = ({ isOpen, notifications, onClose, onMarkAllRead, on
                         <button
                           onClick={() => onRemove(n.id)}
                           className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 transition-all self-start"
-                          aria-label="Bildirimi sil"
+                          aria-label="Delete notification"
                         >
                           <X className="w-4 h-4" />
                         </button>

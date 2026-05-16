@@ -1,6 +1,35 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Heart, Bell, Settings, LogOut, ShoppingCart, ArrowRight } from 'lucide-react';
+import {
+  User,
+  Heart,
+  Bell,
+  Settings,
+  LogOut,
+  ShoppingCart,
+  ArrowRight,
+  Store,
+  CreditCard,
+  Plus,
+  CheckCircle2,
+  Link as LinkIcon,
+  Trash2,
+  ShieldCheck,
+} from 'lucide-react';
+
+const ECOMMERCE_ACCOUNTS = [
+  { id: 'hepsiburada', name: 'Hepsiburada', color: 'from-orange-400 to-orange-600', initials: 'HB', email: 'alex.rivera@hepsi.com', connected: true },
+  { id: 'trendyol',    name: 'Trendyol',    color: 'from-orange-500 to-red-500',    initials: 'TY', email: 'alex@trendyol.com', connected: true },
+  { id: 'amazon',      name: 'Amazon',      color: 'from-slate-700 to-slate-900',   initials: 'AM', email: null, connected: false },
+  { id: 'vatan',       name: 'Vatan Bilgisayar', color: 'from-yellow-400 to-amber-600', initials: 'VB', email: 'rivera@vatan.com', connected: true },
+  { id: 'mediamarkt',  name: 'MediaMarkt',   color: 'from-red-500 to-rose-600',     initials: 'MM', email: null, connected: false },
+  { id: 'n11',         name: 'N11',          color: 'from-fuchsia-500 to-violet-600', initials: 'N11', email: null, connected: false },
+];
+
+const SAVED_CARDS = [
+  { id: 'card-1', label: 'Salary Card', brand: 'Visa',       last4: '4827', expiry: '08/28', gradient: 'from-indigo-600 via-blue-600 to-purple-700' },
+  { id: 'card-2', label: 'Bonus',       brand: 'Mastercard', last4: '1903', expiry: '11/27', gradient: 'from-rose-500 via-pink-500 to-fuchsia-600' },
+];
 
 const Profile = ({ forceTab }) => {
   const [activeTab, setActiveTab] = React.useState(forceTab || 'profile');
@@ -136,7 +165,7 @@ const Profile = ({ forceTab }) => {
                 </div>
               </div>
 
-              {/* Tercihler */}
+              {/* Preferences */}
               <div className="glass-card p-6 bg-white border-slate-100">
                 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                   <Settings className="w-5 h-5 text-slate-400" />
@@ -171,14 +200,14 @@ const Profile = ({ forceTab }) => {
                       <p className="text-xs text-slate-500">Gemini response language</p>
                     </div>
                     <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none" defaultValue="English">
-                      <option value="Türkçe">Turkish</option>
+                      <option value="Turkish">Turkish</option>
                       <option value="English">English</option>
                     </select>
                   </div>
                 </div>
               </div>
 
-              {/* Bildirimler */}
+              {/* Notifications */}
               <div className="glass-card p-6 bg-white border-slate-100 md:col-span-2">
                 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                   <Bell className="w-5 h-5 text-slate-400" />
@@ -217,6 +246,102 @@ const Profile = ({ forceTab }) => {
               </div>
             </div>
             
+            {/* E-Commerce Accounts */}
+            <div className="glass-card p-6 bg-white border-slate-100">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                  <Store className="w-5 h-5 text-slate-400" />
+                  E-Commerce Accounts
+                </h3>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  {ECOMMERCE_ACCOUNTS.filter((a) => a.connected).length}/{ECOMMERCE_ACCOUNTS.length} connected
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {ECOMMERCE_ACCOUNTS.map((acc) => (
+                  <motion.div
+                    key={acc.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`relative overflow-hidden rounded-2xl border p-4 flex items-center gap-3 transition-all ${
+                      acc.connected
+                        ? 'border-emerald-200 bg-emerald-50/40'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${acc.color} flex items-center justify-center text-white font-black text-sm shadow-sm`}>
+                      {acc.initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">{acc.name}</p>
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {acc.connected ? acc.email : 'Not connected'}
+                      </p>
+                    </div>
+                    {acc.connected ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
+                        <CheckCircle2 className="w-3 h-3" /> Connected
+                      </span>
+                    ) : (
+                      <button className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider hover:bg-slate-700 transition-colors">
+                        <LinkIcon className="w-3 h-3" /> Connect
+                      </button>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+
+            {/* Saved Cards */}
+            <div className="glass-card p-6 bg-white border-slate-100">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-slate-400" />
+                  Saved Cards
+                </h3>
+                <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-black uppercase tracking-wider hover:bg-primary hover:text-white transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Add Card
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {SAVED_CARDS.map((card) => (
+                  <motion.div
+                    key={card.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`relative rounded-2xl p-5 text-white bg-gradient-to-br ${card.gradient} shadow-lg overflow-hidden`}
+                  >
+                    <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
+                    <div className="relative flex flex-col h-full">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-white/80">{card.label}</span>
+                        <button className="p-1 text-white/70 hover:text-white" title="Remove">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="mt-6 text-xl font-black tracking-[0.18em]">
+                        •••• •••• •••• {card.last4}
+                      </p>
+                      <div className="mt-4 flex items-end justify-between">
+                        <div>
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-white/70">Expires</p>
+                          <p className="text-sm font-black">{card.expiry}</p>
+                        </div>
+                        <p className="text-sm font-black italic">{card.brand}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <p className="text-[11px] text-slate-500 mt-4 inline-flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                Card details are stored with 256-bit encryption.
+              </p>
+            </div>
+
             <div className="flex justify-end pt-4">
               <button className="btn-primary py-3 px-8 text-sm uppercase tracking-widest shadow-lg shadow-primary/20">Save Changes</button>
             </div>

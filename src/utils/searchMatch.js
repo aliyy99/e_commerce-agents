@@ -77,14 +77,14 @@ export function findBestProductMatch(query, products) {
 // ──────────────────────────────────────────────────────────────
 
 const INTENT_TEMPLATES_TR = [
-  '{q} fiyatı',
-  '{q} inceleme',
-  '{q} yorumlar',
-  '{q} ne zaman alınmalı',
-  '{q} kampanya',
-  '{q} özellikleri',
-  '{q} kullanıcı deneyimi',
-  '{q} en uygun fiyat',
+  '{q} price',
+  '{q} review',
+  '{q} user reviews',
+  '{q} when to buy',
+  '{q} deals',
+  '{q} specs',
+  '{q} user experience',
+  '{q} best price',
 ];
 
 const INTENT_TEMPLATES_EN = [

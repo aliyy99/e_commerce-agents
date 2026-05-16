@@ -239,11 +239,11 @@ export const sampleProducts = [
         "label": "Color",
         "specLabel": "Color",
         "options": [
-          { "value": "Blue",   "shortValue": "Mavi",   "priceDelta": 0, "isDefault": true },
-          { "value": "Pink",   "shortValue": "Pembe",  "priceDelta": 0 },
-          { "value": "Yellow", "shortValue": "Sarı",   "priceDelta": 0 },
-          { "value": "Black",  "shortValue": "Siyah",  "priceDelta": 0 },
-          { "value": "Green",  "shortValue": "Yeşil",  "priceDelta": 0 }
+          { "value": "Blue",   "shortValue": "Blue",   "priceDelta": 0, "isDefault": true },
+          { "value": "Pink",   "shortValue": "Pink",   "priceDelta": 0 },
+          { "value": "Yellow", "shortValue": "Yellow", "priceDelta": 0 },
+          { "value": "Black",  "shortValue": "Black",  "priceDelta": 0 },
+          { "value": "Green",  "shortValue": "Green",  "priceDelta": 0 }
         ]
       }
     ],

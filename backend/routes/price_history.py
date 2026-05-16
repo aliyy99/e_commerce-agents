@@ -351,15 +351,13 @@ async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
     months = _last_12_months()
     prompt = _build_prompt(body.product_name, body.currency, months)
 
-    # Tight cascade: one Flash candidate (free-tier, fast) + one Lite fallback.
-    # Single tool spec per model = at most 2 API calls per request to respect
-    # the limited quota. ``google_search`` is the only tool form Gemini 2.5+
-    # accepts; older ``google_search_retrieval`` returns 400 on these models.
-    # gemini-2.0-flash / *-latest aliases are on a zero-quota tier for this
-    # key, so the fallback is gemini-2.5-flash-lite (still on the free tier).
+    # Tight cascade: Gemini 3 Flash (best grounded research quality) → 2.5 Flash
+    # fallback. ``google_search`` is the only tool form these models accept;
+    # older ``google_search_retrieval`` returns 400. At most 2 API calls per
+    # request keeps the quota footprint small.
     candidate_models = list(dict.fromkeys([
-        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
+        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-3-flash-preview",
+        getattr(settings, "PRICE_HISTORY_FALLBACK_MODEL", None) or "gemini-2.5-flash",
     ]))
     candidate_models = [m for m in candidate_models if m]
 

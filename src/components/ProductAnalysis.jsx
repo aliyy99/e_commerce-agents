@@ -325,17 +325,17 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
 
         {analysisError ? (
           <div className="bg-white border border-accent-rose/30 rounded-2xl p-8 shadow-sm mt-14">
-            <h3 className="text-lg font-bold text-accent-rose mb-2">Analiz tamamlanamadı</h3>
+            <h3 className="text-lg font-bold text-accent-rose mb-2">Analysis failed</h3>
             <p className="text-sm text-slate-600 leading-relaxed mb-4">{analysisError}</p>
             <p className="text-xs text-slate-400">
-              Backend servisinin çalıştığını ve ağ bağlantınızı kontrol edin, ardından tekrar deneyin.
+              Check that the backend service is running and verify your network connection, then try again.
             </p>
             <button
               onClick={handleAnalyze}
               disabled={isAnalyzing}
               className="mt-4 px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary-hover disabled:opacity-50"
             >
-              Tekrar Dene
+              Try Again
             </button>
           </div>
         ) : analysisReport ? (

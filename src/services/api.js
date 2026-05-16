@@ -23,7 +23,7 @@ async function apiFetch(path, options = {}) {
     response = await fetch(url, { ...options, headers });
   } catch (err) {
     const networkError = new Error(
-      `Backend bağlantısı kurulamadı (${url}). API sunucusunun çalıştığını doğrulayın.`,
+      `Could not reach the backend (${url}). Make sure the API server is running.`,
     );
     networkError.code = 'NETWORK_ERROR';
     networkError.cause = err;
@@ -40,7 +40,7 @@ async function apiFetch(path, options = {}) {
 
 function buildVisionPayload(imageInput, locale = 'tr') {
   if (typeof imageInput !== 'string' || !imageInput.trim()) {
-    throw new Error('Geçerli bir görsel girdisi gerekli.');
+    throw new Error('A valid image input is required.');
   }
 
   const trimmed = imageInput.trim();
@@ -48,7 +48,7 @@ function buildVisionPayload(imageInput, locale = 'tr') {
   if (trimmed.startsWith('data:')) {
     const [, base64] = trimmed.split(',', 2);
     if (!base64) {
-      throw new Error('Base64 görsel verisi çözümlenemedi.');
+      throw new Error('Could not decode the Base64 image data.');
     }
     return {
       input_type: 'base64',
@@ -58,10 +58,10 @@ function buildVisionPayload(imageInput, locale = 'tr') {
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
-    throw new Error('Doğrudan görsel URL desteklenmiyor. Lütfen görsel yükleyin veya kameradan çekin.');
+    throw new Error('Direct image URLs are not supported. Please upload an image or capture one from your camera.');
   }
 
-  throw new Error('Görsel girdisi data URL formatında olmalıdır.');
+  throw new Error('Image input must be in data URL format.');
 }
 
 

@@ -6,7 +6,7 @@ import { chatWithAssistant } from '../services/api';
 
 const MAX_INPUT_HEIGHT = 120;
 
-const ChatWidget = ({ contextProduct }) => {
+const ChatWidget = ({ contextProduct, priceHistoryReport = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'assistant', content: "Hello! 👋 I'm Techno Track, your personal shopping assistant. I can help you with price comparisons, technical details, and buying advice. How can I help you today?" }
@@ -70,10 +70,20 @@ const ChatWidget = ({ contextProduct }) => {
     setIsLoading(true);
 
     try {
+      // Merge price-history report into the context so the backend can treat
+      // chart values (lowest/highest/average/per-month) as the authoritative
+      // source for any price question. snake_case key matches what the prompt
+      // and backend regex expect.
+      const contextPayload = contextProduct
+        ? {
+            ...contextProduct,
+            ...(priceHistoryReport ? { price_history: priceHistoryReport } : {}),
+          }
+        : null;
       const { reply } = await chatWithAssistant({
         history: messages,
         userMessage,
-        contextData: contextProduct,
+        contextData: contextPayload,
       });
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (err) {

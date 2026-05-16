@@ -51,6 +51,11 @@ class Settings:
     # leaves an answer-capable fallback.
     CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-3-flash-preview")
     CHAT_FALLBACK_MODEL = os.getenv("CHAT_FALLBACK_MODEL", "gemini-2.5-flash-lite")
+    # Price-history grounded research model. Gemini 3 Flash gives the best
+    # Google Search grounding quality; 2.5 Flash is the fallback if the 3 Flash
+    # preview hits an error or quota wall.
+    PRICE_HISTORY_MODEL = os.getenv("PRICE_HISTORY_MODEL", "gemini-3-flash-preview")
+    PRICE_HISTORY_FALLBACK_MODEL = os.getenv("PRICE_HISTORY_FALLBACK_MODEL", "gemini-2.5-flash")
     IMAGE_MODEL = os.getenv("IMAGE_MODEL", "imagen-3.0-generate-002")
 
     # ── Supabase ───────────────────────────────

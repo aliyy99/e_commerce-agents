@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, TrendingUp, TrendingDown, Activity, Zap, ArrowLeft, ExternalLink, AlertTriangle, Heart, Bell } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Activity, Zap, ArrowLeft, ExternalLink, Heart, Bell } from 'lucide-react';
 import PriceChart from './PriceChart';
 import { sampleProducts } from '../data/products';
 import { filterProducts } from '../utils/searchMatch';
@@ -115,12 +115,11 @@ const PriceGraphic = ({
             </button>
 
             {selectedReport && trendMeta && (
-              <div className={`flex items-center justify-between border rounded-xl px-3 py-2 ${trendMeta.bg} ${trendMeta.border}`}>
+              <div className={`flex items-center border rounded-xl px-3 py-2 ${trendMeta.bg} ${trendMeta.border}`}>
                 <span className="flex items-center gap-2">
                   <trendMeta.Icon className={`w-4 h-4 ${trendMeta.color}`} />
                   <span className={`text-[11px] font-bold uppercase tracking-widest ${trendMeta.color}`}>{trendMeta.label}</span>
                 </span>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{selectedReport.model_used}</span>
               </div>
             )}
           </motion.div>
@@ -149,7 +148,7 @@ const PriceGraphic = ({
                 </div>
                 <h3 className="text-2xl font-display font-black text-slate-900 mb-2">Comprehensive Price Analysis</h3>
                 <p className="text-sm text-slate-500 max-w-md text-center leading-relaxed">
-                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, powered by Gemini 2.5 Flash and live Google Search data.
+                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, powered by Gemini 3 Flash and live Google Search data.
                 </p>
               </div>
             )}
@@ -170,18 +169,6 @@ const PriceGraphic = ({
 
             {selectedReport && (
               <>
-                {selectedReport.grounded === false && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-bold text-amber-900">AI estimate — not live data</p>
-                      <p className="text-xs text-amber-800 leading-relaxed mt-0.5">
-                        Google Search grounding didn't return any e-commerce sources for this product. The chart values are AI-extrapolated and may not match current store prices.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
                   <PriceChart points={selectedReport.points} currency={selectedReport.currency} />
                 </div>
@@ -264,6 +251,13 @@ const PriceGraphic = ({
               const isTracked = tracked.some((t) => t.id === product.id);
               const productImage = (product.images || [])[0] || PRODUCT_IMAGE_FALLBACK;
               const analyzedPrice = report?.lowest ?? null;
+              // Fallback when no analysis yet: average of declared store prices.
+              const storePrices = (product.stores || [])
+                .map((s) => Number(s?.price))
+                .filter((p) => Number.isFinite(p) && p > 0);
+              const averagePrice = storePrices.length
+                ? storePrices.reduce((a, b) => a + b, 0) / storePrices.length
+                : null;
 
               return (
                 <div 
@@ -297,6 +291,11 @@ const PriceGraphic = ({
                           <span className={`text-[9px] font-bold uppercase tracking-wider ${trendMeta.color} leading-none mb-0.5`}>{trendMeta.label}</span>
                           <span className="text-sm font-black text-slate-900 leading-none">{Math.round(analyzedPrice).toLocaleString()} TL</span>
                         </div>
+                      </div>
+                    ) : averagePrice != null ? (
+                      <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 text-right">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Average</p>
+                        <p className="text-sm font-black text-slate-900 leading-none">{Math.round(averagePrice).toLocaleString()} TL</p>
                       </div>
                     ) : (
                       <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 text-right">
