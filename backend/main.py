@@ -100,12 +100,106 @@ async def health():
 
 
 # ── Dev entry-point ───────────────────────────────────────────
+def _find_listener_pid(port: int) -> int | None:
+    """Best-effort lookup of the PID holding a TCP listen socket on ``port``.
+
+    Uses ``netstat`` on Windows and ``lsof`` on POSIX so we don't depend on
+    ``psutil``. Returns ``None`` if the platform tool isn't available or the
+    output can't be parsed.
+    """
+    import platform
+    import subprocess
+
+    try:
+        if platform.system() == "Windows":
+            out = subprocess.check_output(
+                ["netstat", "-ano", "-p", "TCP"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            needle = f":{port} "
+            for line in out.splitlines():
+                if "LISTENING" in line and needle in line:
+                    parts = line.split()
+                    return int(parts[-1])
+        else:
+            out = subprocess.check_output(
+                ["lsof", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            line = out.strip().splitlines()
+            if line:
+                return int(line[0])
+    except Exception:
+        return None
+    return None
+
+
+def _ensure_port_available(host: str, port: int) -> None:
+    """Exit early with an actionable message if the port is already taken.
+
+    Without this the user sees the raw OS error (WinError 10048 on Windows,
+    EADDRINUSE on POSIX) plus a long traceback — neither tells them what to
+    do. We replace it with the offending PID and the exact command to free
+    the port on their platform.
+    """
+    import socket
+    import sys
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind((host if host != "0.0.0.0" else "127.0.0.1", port))
+    except OSError:
+        probe.close()
+        pid = _find_listener_pid(port)
+        print(
+            f"\n[X] Port {port} is already in use"
+            + (f" by PID {pid}" if pid else "")
+            + " - the backend cannot start.",
+            file=sys.stderr,
+        )
+        print("    Free it and try again:", file=sys.stderr)
+        if sys.platform == "win32":
+            if pid:
+                print(f"      PowerShell:  Stop-Process -Id {pid} -Force", file=sys.stderr)
+                print(f"      CMD:         taskkill /F /PID {pid}", file=sys.stderr)
+            else:
+                print(
+                    "      PowerShell:  Get-NetTCPConnection -LocalPort "
+                    f"{port} | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}",
+                    file=sys.stderr,
+                )
+        else:
+            if pid:
+                print(f"      kill -9 {pid}", file=sys.stderr)
+            else:
+                print(f"      lsof -iTCP:{port} -sTCP:LISTEN", file=sys.stderr)
+        print(
+            "    Tip: run the dev server with --reload (already on by default in development)"
+            " so you rarely need to manually restart.\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    else:
+        probe.close()
+
+
 if __name__ == "__main__":
     import uvicorn
+
+    _ensure_port_available("0.0.0.0", settings.PORT)
+    is_dev = settings.APP_ENV == "development"
     uvicorn.run(
         "backend.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=settings.APP_ENV == "development",
+        port=settings.PORT,
+        reload=is_dev,
+        # Scope the reloader to backend/ only. Without this, watchfiles scans
+        # the whole project root (frontend/, node_modules/, *.log) and the log
+        # file we ourselves write triggers a restart loop, racing the previous
+        # worker for the port → WinError 10048 on Windows.
+        reload_dirs=["backend"] if is_dev else None,
+        reload_excludes=["*.log", "*.pyc", "__pycache__/*", ".venv/*"] if is_dev else None,
         log_level=settings.LOG_LEVEL.lower(),
     )
