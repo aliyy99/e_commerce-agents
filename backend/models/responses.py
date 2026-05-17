@@ -159,11 +159,132 @@ class StorePrice(BaseModel):
     currency: str = "TRY"
 
 
+# ──────────────────────────────────────────────────────────────
+# DEEP ANALYSIS – Blind Spots / Chronic Issues / Trust Score
+# ──────────────────────────────────────────────────────────────
+class ChronicIssue(BaseModel):
+    """A complaint pattern that recurs across many user reviews."""
+    issue: str = Field(..., description="Concise label, e.g. 'Battery dies after 6 months'.")
+    frequency: int = Field(..., ge=1, description="How many reviews mention this issue.")
+    severity: str = Field(
+        ...,
+        description="'low' | 'medium' | 'high' — impact on the buying decision.",
+    )
+    evidence: List[str] = Field(
+        default_factory=list,
+        description="Up to 3 short verbatim quotes from real reviews.",
+    )
+
+
+class BlindSpot(BaseModel):
+    """A technical limitation the seller/manufacturer does not advertise openly."""
+    claim: str = Field(..., description="What the marketing/spec sheet implies.")
+    reality: str = Field(..., description="What actually happens in everyday use.")
+    source: str = Field(
+        ...,
+        description="'reviews' | 'spec_sheet' | 'expert_consensus' — where this was inferred from.",
+    )
+
+
+class TrustReport(BaseModel):
+    """Estimates how trustworthy the visible review pool is."""
+    total_reviews_seen: int
+    organic_pct: float = Field(..., ge=0, le=100, description="Estimated genuine reviews %.")
+    suspicious_pct: float = Field(..., ge=0, le=100, description="Estimated fake/bot reviews %.")
+    trust_score: int = Field(
+        ...,
+        ge=0, le=100,
+        description="0-100 confidence in the visible review pool (100 = fully trustworthy).",
+    )
+    suspicious_signals: List[str] = Field(
+        default_factory=list,
+        description="Patterns flagging fake reviews: 'all 5-star', 'generic praise', 'identical phrasing'.",
+    )
+    suspicious_examples: List[str] = Field(
+        default_factory=list,
+        description="Up to 3 sample suspicious review snippets.",
+    )
+
+
+class HonestPoint(BaseModel):
+    """A genuinely strong or genuinely weak aspect of the product."""
+    label: str = Field(..., description="One-line label, e.g. 'Camera in daylight'.")
+    explanation: str = Field(..., description="Why this is genuinely good/bad.")
+    evidence: Optional[str] = Field(None, description="Short supporting quote from a review, if any.")
+
+
+class SiteSummary(BaseModel):
+    """Compact per-site snapshot for the comparison strip."""
+    site: str
+    url: Optional[str] = None
+    price: Optional[float] = None
+    currency: str = "TRY"
+    rating: Optional[float] = None
+    review_count: Optional[int] = None
+    pros: List[str] = Field(default_factory=list)
+    cons: List[str] = Field(default_factory=list)
+
+
+class GroundingSource(BaseModel):
+    """A web source the grounded model cited via Google Search."""
+    title: Optional[str] = None
+    uri: str
+
+
+class DeepAnalysis(BaseModel):
+    """
+    The structured intelligence report produced by the Analyst Agent. The
+    frontend renders this directly — no markdown rehydration needed.
+    """
+    verdict: str = Field(..., description="'BUY' | 'WAIT' | 'AVOID'.")
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    headline: str = Field(..., description="One-sentence punchy verdict.")
+    final_recommendation: str = Field(
+        ...,
+        description="2-3 paragraph plain-language buying advice that names concrete reasons.",
+    )
+    blind_spots: List[BlindSpot] = Field(default_factory=list)
+    chronic_issues: List[ChronicIssue] = Field(default_factory=list)
+    trust_report: TrustReport
+    honest_pros: List[HonestPoint] = Field(
+        default_factory=list,
+        description="Exactly 3 genuinely good aspects.",
+    )
+    honest_cons: List[HonestPoint] = Field(
+        default_factory=list,
+        description="Exactly 3 must-tolerate aspects.",
+    )
+    red_flags: List[str] = Field(
+        default_factory=list,
+        description="Critical warnings (fake product reports, arrived broken, etc.).",
+    )
+    site_summaries: List[SiteSummary] = Field(default_factory=list)
+    cheapest_site: Optional[str] = None
+    cheapest_price: Optional[float] = None
+    grounding_sources: List[GroundingSource] = Field(
+        default_factory=list,
+        description="External web sources cited by the model via Google Search.",
+    )
+    grounded: bool = Field(
+        default=False,
+        description="True when the model actually invoked Google Search to corroborate facts.",
+    )
+
+
 class CompareResponse(BaseModel):
-    markdown_report: str
+    """
+    Response from /api/v1/analyze/compare.
+
+    The page consumes ``deep_analysis`` directly; ``markdown_report`` is kept
+    optional for backwards compatibility but the analyst agent no longer
+    produces free-form prose by default.
+    """
+    deep_analysis: Optional[DeepAnalysis] = None
+    markdown_report: Optional[str] = None
     lowest_price: Optional[float] = Field(
         None,
         description="Cheapest numeric price found across scraped sites (in store currency).",
     )
     lowest_price_site: Optional[str] = None
     store_prices: List[StorePrice] = Field(default_factory=list)
+    model_used: Optional[str] = None

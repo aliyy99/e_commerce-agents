@@ -10,6 +10,7 @@ import NotificationsDrawer from './components/NotificationsDrawer';
 import Campaigns from './components/Campaigns';
 import PriceGraphic from './components/PriceGraphic';
 import Orders from './components/Orders';
+import DeviceCompare from './components/DeviceCompare';
 import VisionMatchModal from './components/VisionMatchModal';
 import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -60,6 +61,10 @@ function App() {
   // Vision (image-search) State
   const [visionDisambiguation, setVisionDisambiguation] = useState(null); // { brand, suggestedModels, detected }
   const [visionError, setVisionError] = useState(null);
+
+  // Latest device comparison — kept around so the ChatWidget can answer
+  // follow-up questions about it ("which is better for gaming?", etc.).
+  const [latestComparison, setLatestComparison] = useState(null);
 
   const handleImageUpload = (e) => {
     const input = e.target;
@@ -781,6 +786,12 @@ function App() {
                 <Orders />
               </motion.div>
             )}
+
+            {currentPage === 'compare' && (
+              <motion.div key="compare" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <DeviceCompare onComparisonReady={setLatestComparison} />
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </main>
@@ -807,6 +818,8 @@ function App() {
       <ChatWidget
         contextProduct={selectedProduct}
         priceHistoryReport={selectedProduct ? priceHistoryReports?.[selectedProduct.id] : null}
+        analystReport={selectedProduct ? analysisReports?.[selectedProduct.id] : null}
+        comparisonContext={latestComparison}
       />
 
       {/* Image-search disambiguation */}

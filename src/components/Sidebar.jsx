@@ -9,6 +9,7 @@ import {
   User,
   Tag,
   Package,
+  Scale,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -17,6 +18,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'campaigns', label: 'Campaigns', icon: Tag },
     { id: 'market', label: 'Price Graphic', icon: TrendingUp },
+    { id: 'compare', label: 'Device Compare', icon: Scale },
     { id: 'tracked', label: 'Tracked Products', icon: Zap },
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'favorites', label: 'Favorites', icon: Heart },

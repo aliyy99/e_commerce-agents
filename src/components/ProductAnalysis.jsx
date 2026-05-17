@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Bell, Star, Zap, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import { compareProducts } from '../services/api';
 import { PRODUCT_IMAGE_FALLBACK } from '../utils/productImage';
 import { getDefaultVariantSelection, resolveProductVariant } from '../utils/productVariants';
+import AnalystReport from './AnalystReport';
 
 const productLinksMapping = {
   "Samsung Galaxy S25 Ultra 512 GB 12 GB Ram": [
@@ -74,7 +74,8 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
   const productImages = (images || []).filter((image) => typeof image === 'string' && image.trim());
   const resolvedProductImages = productImages.length > 0 ? productImages : [PRODUCT_IMAGE_FALLBACK];
   const analysisPayload = analysisReports?.[productId];
-  const analysisReport = analysisPayload?.markdown || null;
+  const deepAnalysis = analysisPayload?.deepAnalysis || null;
+  const analysisModel = analysisPayload?.modelUsed || null;
   const analyzedLowestPrice = analysisPayload?.lowestPrice ?? null;
   const analyzedLowestSite = analysisPayload?.lowestSite || null;
 
@@ -124,11 +125,12 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
       });
 
       const result = await compareProducts(productsData);
-      if (!result?.markdown_report) {
+      if (!result?.deep_analysis) {
         throw new Error('Backend did not return a valid analysis report.');
       }
       onAnalysisComplete({
-        markdown: result.markdown_report,
+        deepAnalysis: result.deep_analysis,
+        modelUsed: result.model_used || null,
         lowestPrice: result.lowest_price ?? null,
         lowestSite: result.lowest_price_site ?? null,
         storePrices: result.store_prices ?? [],
@@ -338,39 +340,28 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
               Try Again
             </button>
           </div>
-        ) : analysisReport ? (
-          <div className="prose prose-slate prose-lg max-w-none bg-white p-8 rounded-2xl shadow-sm border border-slate-100 overflow-y-auto max-h-[1200px] custom-markdown mt-14">
-            <ReactMarkdown
-              components={{
-                h1: ({node, ...props}) => <h1 className="text-3xl font-black text-slate-900 border-b border-slate-100 pb-4 mb-6" {...props} />,
-                h2: ({node, ...props}) => <h2 className="text-2xl font-black text-primary mt-10 mb-5 flex items-center gap-2 border-b border-primary/10 pb-2" {...props} />,
-                h3: ({node, ...props}) => <h3 className="text-xl font-bold text-slate-800 mt-8 mb-4" {...props} />,
-                ul: ({node, ...props}) => <ul className="space-y-3 mb-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100" {...props} />,
-                li: ({node, ...props}) => (
-                  <li className="flex items-start gap-3 text-slate-700 leading-relaxed">
-                    <span className="w-2 h-2 rounded-full bg-primary/60 mt-2 shrink-0 shadow-sm" />
-                    <span className="flex-1">{props.children}</span>
-                  </li>
-                ),
-                a: ({node, ...props}) => {
-                  if (props.children === 'Siteye Git' || (Array.isArray(props.children) && props.children.join('') === 'Siteye Git') || (props.children && String(props.children).includes('Siteye Git'))) {
-                    return (
-                      <div className="flex justify-end mt-4">
-                        <a {...props} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-hover transition-colors shadow-sm no-underline group">
-                          {props.children}
-                          <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                        </a>
-                      </div>
-                    );
-                  }
-                  return <a {...props} className="text-primary hover:underline font-bold" target="_blank" rel="noopener noreferrer" />;
-                },
-                strong: ({node, ...props}) => <strong className="font-black text-slate-900 bg-primary/5 px-1.5 py-0.5 rounded-md" {...props} />,
-                p: ({node, ...props}) => <p className="text-slate-600 leading-relaxed mb-6 text-base" {...props} />
-              }}
-            >
-              {analysisReport}
-            </ReactMarkdown>
+        ) : isAnalyzing && !deepAnalysis ? (
+          <div className="mt-14 rounded-3xl bg-gradient-to-br from-slate-50 to-white border border-slate-100 p-10 text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }}
+                  className="w-3 h-3 rounded-full bg-primary"
+                />
+              ))}
+            </div>
+            <h3 className="font-display text-xl font-black text-slate-900">
+              The Analyst Agent is reading every review…
+            </h3>
+            <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+              Detecting blind spots, clustering chronic complaints, filtering suspicious reviews and writing an honest verdict.
+            </p>
+          </div>
+        ) : deepAnalysis ? (
+          <div className="mt-14">
+            <AnalystReport analysis={deepAnalysis} modelUsed={analysisModel} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center text-center p-12 h-full bg-white rounded-2xl border border-slate-100 shadow-sm mt-14">
@@ -379,7 +370,7 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
             </div>
             <h3 className="text-2xl font-display font-black text-slate-900 mb-3">Comprehensive Product Analysis</h3>
             <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-              Click the <strong>Analyze</strong> button to get a comprehensive competitor and market analysis via Gemini with up-to-date data for the product. The report will be generated in seconds.
+              Click <strong>Analyze</strong> to run the Analyst Agent. It scans every site, filters suspicious reviews, surfaces blind spots and chronic issues, and writes an honest pros/cons verdict.
             </p>
           </div>
         )}

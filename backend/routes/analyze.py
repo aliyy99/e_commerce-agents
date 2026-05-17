@@ -16,7 +16,7 @@ router = APIRouter(prefix="/analyze", tags=["Analyst Agent"])
 @router.post(
     "/compare",
     response_model=CompareResponse,
-    summary="Multi-site product comparison and analysis",
+    summary="Deep multi-site analyst report (blind spots, chronic issues, trust)",
     status_code=status.HTTP_200_OK,
 )
 async def analyze_compare(body: CompareRequest) -> CompareResponse:
@@ -24,10 +24,11 @@ async def analyze_compare(body: CompareRequest) -> CompareResponse:
     try:
         result = await run_compare_agent(body)
         return CompareResponse(
-            markdown_report=result["markdown_report"],
+            deep_analysis=result.get("deep_analysis"),
             lowest_price=result.get("lowest_price"),
             lowest_price_site=result.get("lowest_price_site"),
             store_prices=result.get("store_prices") or [],
+            model_used=result.get("model_used"),
         )
     except Exception as err:
         logger.error("Compare agent failed: %s", err)

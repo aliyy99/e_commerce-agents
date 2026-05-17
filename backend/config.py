@@ -42,6 +42,13 @@ class Settings:
     # retries keeps the worst case at 2 API calls so a limited quota lasts.
     COMPARE_MODEL = os.getenv("COMPARE_MODEL", "gemini-3-flash-preview")
     COMPARE_FALLBACK_MODEL = os.getenv("COMPARE_FALLBACK_MODEL", "gemini-2.5-flash")
+    # Deep review intelligence (Blind Spots / Chronic Issues / Trust Score /
+    # Honest Pros-Cons). Defaults to Gemini 3 Flash because the active key has
+    # zero free-tier quota for `gemini-3-pro` / `*-pro-preview`. Operators with
+    # a paid plan can flip ANALYST_MODEL=gemini-3-pro in .env to take advantage
+    # of the Pro variant's deeper reasoning and the same wide context window.
+    ANALYST_MODEL = os.getenv("ANALYST_MODEL", "gemini-3-flash-preview")
+    ANALYST_FALLBACK_MODEL = os.getenv("ANALYST_FALLBACK_MODEL", "gemini-2.5-flash")
     # Vision (product scan & match) — multimodal Flash is strong on brand/
     # variant disambiguation.
     VISION_MODEL = os.getenv("VISION_MODEL", "gemini-3-flash-preview")

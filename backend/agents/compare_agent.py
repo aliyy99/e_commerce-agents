@@ -9,17 +9,12 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-import google.generativeai as genai
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..config import settings
 from ..models.requests import CompareRequest, CompareSiteData
-from ..services.gemini_client import (
-    GeminiAuthError,
-    configure_gemini_client,
-    raise_if_auth_error,
-    retry_on_non_auth_error,
-)
+from ..services.gemini_client import GeminiAuthError
+from ..services.gemini_grounded import call_gemini, GroundedResult
 
 logger = logging.getLogger("technotrack.compare_agent")
 
@@ -32,51 +27,139 @@ _JSON_LD_RE = re.compile(
     flags=re.IGNORECASE | re.DOTALL,
 )
 
-_COMPARE_SYSTEM = """
-You are a senior e-commerce intelligence analyst.
-You will receive ONLY structured data extracted from product links.
-Respond in English and output only markdown.
-Never invent values. If a value is missing, explicitly write "not found".
+_ANALYST_SYSTEM = """
+You are the Analyst Agent — an elite consumer-tech product intelligence
+analyst. Your job is NOT to write a glossy review. Your job is to expose what
+the seller does NOT say.
+
+Operating principles:
+1. BLIND SPOTS over marketing. List the technical / usage caveats the
+   manufacturer or seller never advertises but expert reviewers, spec
+   footnotes or experienced owners reveal (e.g. "Fast charge only with one
+   cable bundled", "Sensor misreads on black carpets").
+2. CHRONIC ISSUES over isolated complaints. Cluster recurring complaints
+   across reviews; report only patterns that appear in MULTIPLE reviews.
+   Cite frequency.
+3. TRUST CHECK over face value. Detect fake / incentivised / bot-generated
+   reviews. Signals: identical phrasing, pure 5-star with one-line generic
+   praise, reviews posted in bursts on the same day, reviews ignoring product
+   specifics. Compute an organic-vs-suspicious split.
+4. HONEST balance. Pick EXACTLY 3 genuinely good aspects and EXACTLY 3
+   must-tolerate weaknesses. Each one MUST be defensible with a concrete
+   reason or a brief evidence quote.
+5. RED FLAGS over polite warnings. Surface "fake product received", "arrived
+   broken", "warranty void on arrival" — anything that should make the buyer
+   hesitate.
+
+GROUNDING — MANDATORY:
+The Google Search tool is ALWAYS available. Before producing the JSON, you
+MUST run AT LEAST these searches and weave the findings into your analysis:
+  • "<product name> uzman incelemesi" OR "<product name> expert review"
+  • "<product name> kronik sorun" OR "<product name> common issues"
+  • "<product name> kullanıcı şikayeti" OR "<product name> complaints"
+Search expands your evidence beyond the supplied scraped reviews — use it to
+corroborate chronic issues, surface blind spots the local reviews missed,
+and validate red flags. Do NOT trust your training data alone for product
+facts (prices, generations, defects) — those change.
+
+Hard constraints:
+- Combine the supplied scraped data WITH the grounded search results as
+  evidence. Never invent prices, ratings or quotes. If something is
+  contradicted by search, prefer the search result.
+- Respond with a SINGLE valid JSON object matching the schema exactly. No
+  markdown fences, no commentary, no leading/trailing prose.
+- All human-readable strings must be in the requested locale.
+- Keep evidence quotes ≤ 120 characters and verbatim (you may translate to
+  the response locale, preserving meaning).
 """.strip()
 
-_COMPARE_PROMPT = """
-The following data was automatically extracted from product pages.
-For each site, you must write the following individually:
-- Site name
-- Link
-- Product name
-- Price
-- Star rating
-- Review count
-- General analysis of reviews (dominant positive/negative themes)
-- Data quality note (state clearly if there's a capture issue)
 
-Output format:
+def _build_analyst_prompt(scraped: list[dict[str, Any]], locale: str) -> str:
+    schema = {
+        "verdict": "BUY | WAIT | AVOID",
+        "confidence": "0.0–1.0 (your own confidence in this verdict)",
+        "headline": "ONE punchy sentence summarising the verdict",
+        "final_recommendation": (
+            "2-3 paragraphs of plain-language buying advice naming concrete "
+            "reasons (price level, chronic issues, blind spots, alternatives)."
+        ),
+        "blind_spots": [
+            {
+                "claim": "what the marketing/spec sheet implies",
+                "reality": "what actually happens day-to-day",
+                "source": "reviews | spec_sheet | expert_consensus",
+            }
+        ],
+        "chronic_issues": [
+            {
+                "issue": "concise label of the recurring complaint",
+                "frequency": "integer count of reviews mentioning this",
+                "severity": "low | medium | high",
+                "evidence": ["up to 3 short verbatim quotes"],
+            }
+        ],
+        "trust_report": {
+            "total_reviews_seen": "integer total across all sites",
+            "organic_pct": "0-100 estimate of genuine reviews",
+            "suspicious_pct": "0-100 estimate of fake/bot reviews",
+            "trust_score": "0-100 overall trust in this review pool",
+            "suspicious_signals": [
+                "patterns you spotted: identical phrasing, generic 5-star, etc."
+            ],
+            "suspicious_examples": ["up to 3 suspicious review snippets"],
+        },
+        "honest_pros": [
+            {
+                "label": "one-line strength",
+                "explanation": "why it's genuinely good",
+                "evidence": "optional supporting review quote",
+            }
+        ],
+        "honest_cons": [
+            {
+                "label": "one-line weakness",
+                "explanation": "why it's a must-tolerate trade-off",
+                "evidence": "optional supporting review quote",
+            }
+        ],
+        "red_flags": [
+            "critical buyer warnings: counterfeits, DOA units, warranty issues"
+        ],
+        "site_summaries": [
+            {
+                "site": "site name",
+                "url": "site url",
+                "price": "numeric or null",
+                "currency": "TRY/EUR/USD",
+                "rating": "numeric or null",
+                "review_count": "integer or null",
+                "pros": ["1-3 quick pros for buying from this site"],
+                "cons": ["1-3 quick cons for buying from this site"],
+            }
+        ],
+        "cheapest_site": "name of the site with the lowest price (or null)",
+        "cheapest_price": "numeric lowest price (or null)",
+    }
 
-# Product Analysis
+    return f"""
+Below is the raw, scraped data for ONE product collected from multiple
+e-commerce sites in the Turkish market. Analyse it according to your system
+instructions and return a SINGLE JSON object matching this schema exactly:
 
-## 1) Site-Based Analysis
-### Site: [Site Name]
-- Product name: [Product Name]
-- Price: [Price]
-- Star rating: [Rating]
-- Review count: [Count]
-- Review analysis: [Summary]
-- Data quality: [Note]
+{json.dumps(schema, ensure_ascii=False, indent=2)}
 
-[Siteye Git]([URL])
+Output requirements:
+- Exactly 3 honest_pros and exactly 3 honest_cons. No more, no fewer.
+- chronic_issues: only include patterns that appear in ≥2 reviews. Sort by
+  frequency descending.
+- blind_spots: 2-5 entries. Each must contrast marketing vs reality.
+- trust_report: total_reviews_seen must equal the sum of reviews supplied
+  below. organic_pct + suspicious_pct must equal 100.
+- red_flags: empty list is fine — only include if there is direct evidence.
+- Locale for all strings: {locale}
 
-## 2) Site Comparison
-- Cheapest site: [Description]
-- Highest rated site: [Description]
-- Strongest review profile: [Description]
-- General recommendation: [Description]
-
-## 3) Comprehensive Conclusion
-[Write a detailed and comprehensive decision-support conclusion consisting of multiple paragraphs. Base your conclusion strictly on the provided data, comparing pricing trends, review insights, and site reliabilities. Provide clear reasoning on why a specific choice is the best.]
-
-Data:
-{json_data}
+Scraped data:
+{json.dumps(scraped, ensure_ascii=False, indent=2)}
 """.strip()
 
 
@@ -415,33 +498,31 @@ async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, A
         return await asyncio.gather(*tasks)
 
 
-@retry(
-    stop=stop_after_attempt(1),
-    wait=wait_exponential(multiplier=1, min=2, max=8),
-    reraise=True,
-    retry=retry_on_non_auth_error,
-)
-def _generate_report(model_name: str, prompt: str, locale: str) -> str:
-    configure_gemini_client()
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=f"{_COMPARE_SYSTEM}\nResponse locale: {locale}",
+async def _generate_deep_analysis(
+    primary: str, fallback: str, prompt: str, locale: str
+) -> GroundedResult:
+    """Call Gemini with Google Search grounding and return the structured
+    deep-analysis JSON plus the grounding source list.
+
+    Goes through the shared async REST helper — async-native (no event loop
+    blocking) and the only path that supports the modern ``google_search``
+    tool form Gemini 2.5+ requires.
+    """
+    return await call_gemini(
+        primary_model=primary,
+        fallback_model=fallback,
+        system=f"{_ANALYST_SYSTEM}\nResponse locale: {locale}",
+        user_prompt=prompt,
+        use_search=True,
+        response_json=True,
+        # Wide enough for grounded chronic-issue evidence + 2-3 paragraph
+        # final recommendation. Gemini 3 ingests thousands of reviews on the
+        # input side; this only budgets the output.
+        max_output_tokens=8192,
+        temperature=0.2,
+        top_p=0.95,
+        timeout_seconds=120.0,
     )
-    try:
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                temperature=0.2,
-                max_output_tokens=3072,
-            ),
-        )
-    except Exception as err:
-        raise_if_auth_error(err)
-        raise
-    text = (response.text or "").strip()
-    if not text:
-        raise ValueError(f"Gemini returned an empty report (model={model_name}).")
-    return text
 
 
 def _parse_price_to_float(raw: Any) -> float | None:
@@ -486,12 +567,232 @@ def _collect_store_prices(scraped: list[dict[str, Any]]) -> list[dict[str, Any]]
     return out
 
 
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_pct(value: Any, default: float = 0.0) -> float:
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, min(100.0, n))
+
+
+def _normalize_str_list(value: Any, limit: int = 5) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for v in value:
+        if not isinstance(v, (str, int, float)):
+            continue
+        s = str(v).strip()
+        if s:
+            out.append(s)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _normalize_chronic_issue(raw: Any) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    issue = str(raw.get("issue") or "").strip()
+    if not issue:
+        return None
+    severity = str(raw.get("severity") or "medium").strip().lower()
+    if severity not in {"low", "medium", "high"}:
+        severity = "medium"
+    return {
+        "issue": issue,
+        "frequency": max(1, _coerce_int(raw.get("frequency"), 1)),
+        "severity": severity,
+        "evidence": _normalize_str_list(raw.get("evidence"), limit=3),
+    }
+
+
+def _normalize_blind_spot(raw: Any) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    claim = str(raw.get("claim") or "").strip()
+    reality = str(raw.get("reality") or "").strip()
+    if not claim or not reality:
+        return None
+    source = str(raw.get("source") or "reviews").strip().lower()
+    if source not in {"reviews", "spec_sheet", "expert_consensus"}:
+        source = "reviews"
+    return {"claim": claim, "reality": reality, "source": source}
+
+
+def _normalize_honest_point(raw: Any) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    label = str(raw.get("label") or "").strip()
+    explanation = str(raw.get("explanation") or "").strip()
+    if not label or not explanation:
+        return None
+    evidence = raw.get("evidence")
+    return {
+        "label": label,
+        "explanation": explanation,
+        "evidence": (str(evidence).strip() or None) if evidence else None,
+    }
+
+
+def _normalize_site_summary(raw: Any) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    site = str(raw.get("site") or "").strip()
+    if not site:
+        return None
+    price = raw.get("price")
+    try:
+        price = float(price) if price not in (None, "", "not found") else None
+    except (TypeError, ValueError):
+        price = None
+    rating = raw.get("rating")
+    try:
+        rating = float(rating) if rating not in (None, "", "not found") else None
+    except (TypeError, ValueError):
+        rating = None
+    return {
+        "site": site,
+        "url": (str(raw.get("url")).strip() or None) if raw.get("url") else None,
+        "price": price,
+        "currency": str(raw.get("currency") or "TRY").strip() or "TRY",
+        "rating": rating,
+        "review_count": _coerce_int(raw.get("review_count"), 0) or None,
+        "pros": _normalize_str_list(raw.get("pros"), limit=3),
+        "cons": _normalize_str_list(raw.get("cons"), limit=3),
+    }
+
+
+def _normalize_deep_analysis(
+    raw: dict,
+    scraped: list[dict[str, Any]],
+    lowest_price: float | None,
+    lowest_price_site: str | None,
+) -> dict:
+    verdict = str(raw.get("verdict") or "WAIT").strip().upper()
+    if verdict not in {"BUY", "WAIT", "AVOID"}:
+        verdict = "WAIT"
+
+    try:
+        confidence = float(raw.get("confidence") or 0.5)
+    except (TypeError, ValueError):
+        confidence = 0.5
+    confidence = max(0.0, min(1.0, confidence))
+
+    raw_trust = raw.get("trust_report") if isinstance(raw.get("trust_report"), dict) else {}
+    organic = _coerce_pct(raw_trust.get("organic_pct"), 100.0)
+    suspicious = _coerce_pct(raw_trust.get("suspicious_pct"), 0.0)
+    # Force the two halves to add up; if the model emitted nonsense, derive
+    # the missing half from the other so the chart never lies.
+    if abs((organic + suspicious) - 100.0) > 0.5:
+        if organic <= 0 and suspicious > 0:
+            organic = 100.0 - suspicious
+        elif suspicious <= 0 and organic > 0:
+            suspicious = 100.0 - organic
+        else:
+            total = organic + suspicious or 100.0
+            organic = round(organic * 100.0 / total, 1)
+            suspicious = round(100.0 - organic, 1)
+    trust_score = _coerce_int(raw_trust.get("trust_score"), int(round(organic)))
+    trust_score = max(0, min(100, trust_score))
+
+    total_reviews = _coerce_int(raw_trust.get("total_reviews_seen"), 0)
+    if total_reviews <= 0:
+        total_reviews = sum(len(item.get("reviews") or []) for item in scraped)
+
+    trust_report = {
+        "total_reviews_seen": total_reviews,
+        "organic_pct": round(organic, 1),
+        "suspicious_pct": round(suspicious, 1),
+        "trust_score": trust_score,
+        "suspicious_signals": _normalize_str_list(raw_trust.get("suspicious_signals"), limit=6),
+        "suspicious_examples": _normalize_str_list(raw_trust.get("suspicious_examples"), limit=3),
+    }
+
+    blind_spots = [bs for bs in (_normalize_blind_spot(b) for b in (raw.get("blind_spots") or [])) if bs][:6]
+
+    chronic_issues = [
+        ci for ci in (_normalize_chronic_issue(c) for c in (raw.get("chronic_issues") or [])) if ci
+    ]
+    chronic_issues.sort(key=lambda c: c["frequency"], reverse=True)
+    chronic_issues = chronic_issues[:8]
+
+    pros = [p for p in (_normalize_honest_point(p) for p in (raw.get("honest_pros") or [])) if p][:3]
+    cons = [p for p in (_normalize_honest_point(p) for p in (raw.get("honest_cons") or [])) if p][:3]
+
+    site_summaries = [
+        s for s in (_normalize_site_summary(s) for s in (raw.get("site_summaries") or [])) if s
+    ]
+    # If the model omitted site_summaries entirely, synthesize a minimal one
+    # from the scraped numerics so the UI's site strip never sits empty.
+    if not site_summaries:
+        for item in scraped:
+            try:
+                p = float(item.get("price")) if item.get("price") not in (None, "", "not found") else None
+            except (TypeError, ValueError):
+                p = None
+            try:
+                r = float(item.get("rating")) if item.get("rating") not in (None, "", "not found") else None
+            except (TypeError, ValueError):
+                r = None
+            site_summaries.append({
+                "site": item.get("site") or "Unknown",
+                "url": item.get("url"),
+                "price": p,
+                "currency": item.get("currency") or "TRY",
+                "rating": r,
+                "review_count": _coerce_int(item.get("review_count"), 0) or None,
+                "pros": [],
+                "cons": [],
+            })
+
+    cheapest_site = raw.get("cheapest_site") or lowest_price_site
+    cheapest_price_raw = raw.get("cheapest_price")
+    try:
+        cheapest_price = float(cheapest_price_raw) if cheapest_price_raw is not None else None
+    except (TypeError, ValueError):
+        cheapest_price = None
+    if cheapest_price is None:
+        cheapest_price = lowest_price
+
+    return {
+        "verdict": verdict,
+        "confidence": confidence,
+        "headline": str(raw.get("headline") or "").strip()
+            or "Genel değerlendirme analiz verilerine göre hazırlandı.",
+        "final_recommendation": str(raw.get("final_recommendation") or "").strip()
+            or "Veriler ışığında dengeli bir alım kararı için kronik sorunları ve kör noktaları göz önünde bulundurun.",
+        "blind_spots": blind_spots,
+        "chronic_issues": chronic_issues,
+        "trust_report": trust_report,
+        "honest_pros": pros,
+        "honest_cons": cons,
+        "red_flags": _normalize_str_list(raw.get("red_flags"), limit=6),
+        "site_summaries": site_summaries,
+        "cheapest_site": cheapest_site,
+        "cheapest_price": cheapest_price,
+    }
+
+
 async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
     """
-    Scrapes live product page data from provided links and produces a Gemini report.
+    Run the full Analyst Agent pipeline:
+      1. Concurrently scrape every supplied product link (JSON-LD + regex
+         fallback + anti-bot mock fallback).
+      2. Aggregate scraped reviews and spec data.
+      3. Ask Gemini (Analyst Model) for a STRUCTURED JSON report focused on
+         blind spots, chronic issues, trust score, and an honest pros/cons
+         balance.
 
-    Returns a dict with keys: markdown_report, lowest_price, lowest_price_site,
-    store_prices.
+    Returns a dict with keys:
+        deep_analysis, lowest_price, lowest_price_site, store_prices, model_used.
     """
     valid_products = [
         product
@@ -519,34 +820,54 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
         lowest_price = None
         lowest_price_site = None
 
-    prompt = _COMPARE_PROMPT.format(json_data=json.dumps(scraped, ensure_ascii=False, indent=2))
-    primary_model = settings.COMPARE_MODEL
-    fallback_model = settings.COMPARE_FALLBACK_MODEL
-    model_candidates = list(dict.fromkeys([primary_model, fallback_model]))
+    # Build a slimmed payload for the model — trim very long review strings
+    # but keep the full set so chronic-pattern detection has signal. Gemini 3's
+    # 1M-token context comfortably ingests thousands of reviews.
+    payload = []
+    for item in scraped:
+        payload.append({
+            **{k: v for k, v in item.items() if k != "reviews"},
+            "reviews": [str(r)[:600] for r in (item.get("reviews") or [])],
+        })
 
-    last_error: Exception | None = None
-    report: str | None = None
-    for model_name in model_candidates:
-        try:
-            report = _generate_report(model_name, prompt, request.locale)
-            if model_name != primary_model:
-                logger.warning("CompareAgent -> fallback model used: %s", model_name)
-            break
-        except GeminiAuthError as err:
-            logger.error("CompareAgent auth error: %s", err)
-            raise RuntimeError(str(err)) from err
-        except Exception as err:
-            logger.warning("CompareAgent model failed (%s): %s", model_name, err)
-            last_error = err
+    prompt = _build_analyst_prompt(payload, request.locale)
 
-    if report is None:
+    # Primary: Analyst model (Gemini 3 Pro when paid, else Gemini 3 Flash).
+    # Fallback: independent Flash-family member so transient errors on one
+    # don't fail the whole call.
+    analyst_primary = getattr(settings, "ANALYST_MODEL", None) or settings.COMPARE_MODEL
+    analyst_fallback = getattr(settings, "ANALYST_FALLBACK_MODEL", None) or settings.COMPARE_FALLBACK_MODEL
+
+    try:
+        grounded = await _generate_deep_analysis(
+            analyst_primary, analyst_fallback, prompt, request.locale,
+        )
+    except GeminiAuthError as err:
+        logger.error("CompareAgent auth error: %s", err)
+        raise RuntimeError(str(err)) from err
+
+    if grounded.parsed is None:
         raise RuntimeError(
-            f"Gemini link-analysis report could not be generated. Cause: {last_error}"
-        ) from last_error
+            "Analyst report could not be parsed. The model returned text without "
+            "a valid JSON object — see server logs for the raw output."
+        )
+
+    deep_analysis = _normalize_deep_analysis(
+        grounded.parsed, scraped, lowest_price, lowest_price_site
+    )
+    deep_analysis["grounding_sources"] = grounded.sources
+    deep_analysis["grounded"] = bool(grounded.sources)
+
+    if grounded.sources:
+        logger.info(
+            "CompareAgent -> grounded with %d sources (model=%s)",
+            len(grounded.sources), grounded.model_used,
+        )
 
     return {
-        "markdown_report": report,
+        "deep_analysis": deep_analysis,
         "lowest_price": lowest_price,
         "lowest_price_site": lowest_price_site,
         "store_prices": store_prices,
+        "model_used": grounded.model_used,
     }

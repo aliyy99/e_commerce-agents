@@ -93,6 +93,38 @@ export async function compareProducts(products) {
   });
 }
 
+function toDevicePayload(product) {
+  if (!product) return null;
+  const averagePrice = Array.isArray(product.stores) && product.stores.length > 0
+    ? product.stores
+        .map((s) => Number(s?.price))
+        .filter((p) => Number.isFinite(p) && p > 0)
+        .reduce((acc, p, _, arr) => acc + p / arr.length, 0)
+    : null;
+  return {
+    id: product.id ?? null,
+    name: product.name,
+    brand: product.brand || null,
+    category: product.category || null,
+    description: product.description || null,
+    specs: Array.isArray(product.specs)
+      ? product.specs.map((s) => ({ label: String(s?.label ?? ''), value: String(s?.value ?? '') }))
+      : [],
+    price: averagePrice && averagePrice > 0 ? Math.round(averagePrice) : null,
+  };
+}
+
+export async function compareDevices({ deviceA, deviceB, locale = 'tr' }) {
+  return apiFetch('/compare-devices', {
+    method: 'POST',
+    body: JSON.stringify({
+      device_a: toDevicePayload(deviceA),
+      device_b: toDevicePayload(deviceB),
+      locale,
+    }),
+  });
+}
+
 export async function fetchPriceHistory({ productName, productId = null, currency = 'TRY', locale = 'tr' }) {
   return apiFetch('/price-history', {
     method: 'POST',

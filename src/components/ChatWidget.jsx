@@ -6,7 +6,7 @@ import { chatWithAssistant } from '../services/api';
 
 const MAX_INPUT_HEIGHT = 120;
 
-const ChatWidget = ({ contextProduct, priceHistoryReport = null }) => {
+const ChatWidget = ({ contextProduct, priceHistoryReport = null, analystReport = null, comparisonContext = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'assistant', content: "Hello! 👋 I'm Techno Track, your personal shopping assistant. I can help you with price comparisons, technical details, and buying advice. How can I help you today?" }
@@ -61,6 +61,31 @@ const ChatWidget = ({ contextProduct, priceHistoryReport = null }) => {
     }
   }, [contextProduct?.id]);
 
+  // When a fresh device comparison lands, give the user a clear handoff so
+  // they realise the chat now knows the full head-to-head context.
+  const comparisonKey = comparisonContext
+    ? `${comparisonContext.deviceA?.id}-${comparisonContext.deviceB?.id}`
+    : null;
+  useEffect(() => {
+    if (!comparisonContext) return;
+    const { deviceA, deviceB, report } = comparisonContext;
+    if (!deviceA || !deviceB || !report) return;
+    const winnerText =
+      report.overall_winner === 'A' ? deviceA.name
+      : report.overall_winner === 'B' ? deviceB.name
+      : 'a tie';
+    setMessages(prev => [
+      ...prev,
+      {
+        role: 'assistant',
+        content:
+          `⚖️ I just absorbed the full **${deviceA.name}** vs **${deviceB.name}** ` +
+          `comparison (overall winner: **${winnerText}**, ${report.score_a} vs ${report.score_b}). ` +
+          `Ask me which one is better for gaming, photography, battery life, productivity — anything.`,
+      },
+    ]);
+  }, [comparisonKey]);
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -74,12 +99,32 @@ const ChatWidget = ({ contextProduct, priceHistoryReport = null }) => {
       // chart values (lowest/highest/average/per-month) as the authoritative
       // source for any price question. snake_case key matches what the prompt
       // and backend regex expect.
-      const contextPayload = contextProduct
-        ? {
-            ...contextProduct,
-            ...(priceHistoryReport ? { price_history: priceHistoryReport } : {}),
-          }
-        : null;
+      //
+      // When the user has just run a Device Compare, we attach the full
+      // comparison (winner, scores, every spec row, summary) so the model can
+      // answer follow-ups like "which is better for gaming?" without
+      // re-asking. Comparison context is allowed even when no product is
+      // selected so the chat works straight from the compare page.
+      let contextPayload = null;
+      if (contextProduct) {
+        contextPayload = {
+          ...contextProduct,
+          ...(priceHistoryReport ? { price_history: priceHistoryReport } : {}),
+          ...(analystReport?.deepAnalysis
+            ? { analyst_report: analystReport.deepAnalysis }
+            : {}),
+        };
+      }
+      if (comparisonContext?.report) {
+        contextPayload = {
+          ...(contextPayload || {}),
+          device_comparison: {
+            device_a: comparisonContext.deviceA,
+            device_b: comparisonContext.deviceB,
+            ...comparisonContext.report,
+          },
+        };
+      }
       const { reply } = await chatWithAssistant({
         history: messages,
         userMessage,
@@ -205,6 +250,13 @@ const ChatWidget = ({ contextProduct, priceHistoryReport = null }) => {
               {contextProduct && (
                 <div className="mb-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10 flex items-center gap-2">
                   <span className="text-[10px] text-primary font-bold truncate">📦 {contextProduct.name}</span>
+                </div>
+              )}
+              {comparisonContext?.report && (
+                <div className="mb-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100 flex items-center gap-2">
+                  <span className="text-[10px] text-amber-700 font-bold truncate">
+                    ⚖️ {comparisonContext.deviceA?.name} vs {comparisonContext.deviceB?.name}
+                  </span>
                 </div>
               )}
               <div className="relative flex items-end gap-2">

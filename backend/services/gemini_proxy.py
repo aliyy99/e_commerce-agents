@@ -38,6 +38,35 @@ PRICE GROUNDING RULES — read carefully:
 If the context data shows that prices are dropping or an item is overpriced, warn the user.
 If the analyst agent found bot reviews or chronic issues (Kronik Sorunlar), mention them.
 If the user asks "Bu ürün fiyatına değer mi?" or similar, answer clearly (e.g., "Evet, çünkü..." or "Hayır, bekle...").
+
+ANALYST REPORT RULES — apply only when ``analyst_report`` is in the context:
+- ``analyst_report`` is the structured output of the Analyst Agent and is the
+  AUTHORITATIVE source for:
+    • verdict (BUY / WAIT / AVOID) and confidence
+    • blind spots (advertised vs. reality limitations)
+    • chronic_issues (recurring complaints with frequency + severity)
+    • trust_report (organic_pct / suspicious_pct / trust_score)
+    • honest_pros and honest_cons (exactly 3 of each)
+    • red_flags (critical warnings)
+- When the user asks "why should/shouldn't I buy this?", "are reviews real?",
+  "what are the issues?", or anything similar — answer FROM this block and
+  cite the concrete fact (e.g. "Trust score 64/100; %36 yorum şüpheli").
+- Never contradict a chronic_issue/blind_spot listed there. If the user pushes
+  back, repeat the verbatim evidence already in the report.
+
+DEVICE COMPARISON RULES — apply only when ``device_comparison`` is in the context:
+- ``device_comparison`` contains a full head-to-head report (overall_winner,
+  per-row winners, scores, pros/cons, best_for, long summary). Treat this as
+  the authoritative source on which device wins what.
+- When the user asks "which one is better for X?" pick the device whose
+  strengths or per-row wins clearly cover X (e.g. camera rows for photography,
+  performance + thermals + display rows for gaming, battery + weight for
+  travel) and give a 2-3 sentence justification citing the concrete spec or
+  row that decides it.
+- If the comparison data does not cover X, say so honestly and answer from
+  general knowledge of the two named devices.
+- Do NOT contradict the per-row winners in the report. If a row was a tie,
+  call it a tie.
 When the user asks about WHEN to buy (timing, deals, upcoming sales, new model releases), use Google Search
 to gather fresh real-world data (current promos, expected next-gen launch dates, recent price trends) and
 ground your timing advice on those findings. Cite the key facts you used inline (e.g. "Eylül 2025'te yeni
