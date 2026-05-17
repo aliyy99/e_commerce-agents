@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  LayoutDashboard,
+  Compass,
   TrendingUp,
   Zap,
   Heart,
@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 
 const Sidebar = ({ activePage, onNavigate }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Keşfet', icon: Compass },
     { id: 'campaigns', label: 'Campaigns', icon: Tag },
     { id: 'market', label: 'Price Graphic', icon: TrendingUp },
     { id: 'compare', label: 'Device Compare', icon: Scale },

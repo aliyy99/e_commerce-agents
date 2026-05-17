@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { sampleProducts } from '../data/products';
 import { compareDevices } from '../services/api';
-import { CATEGORY_META, deriveCategory, groupProductsByCategory } from '../utils/productCategory';
+import { CATEGORY_META, deriveCategory } from '../utils/productCategory';
 import { PRODUCT_IMAGE_FALLBACK } from '../utils/productImage';
 
 const ICON_MAP = {
@@ -305,8 +305,6 @@ const ScoreBar = ({ label, score, color }) => (
 );
 
 const DeviceCompare = ({ onComparisonReady }) => {
-  const grouped = useMemo(() => groupProductsByCategory(sampleProducts), []);
-
   const [deviceA, setDeviceA] = useState(null);
   const [deviceB, setDeviceB] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -383,7 +381,7 @@ const DeviceCompare = ({ onComparisonReady }) => {
           <div className="flex-1">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-300 mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              Powered by Gemini 2.5 Flash
+              AI-Powered Spec Analysis
             </div>
             <h2 className="text-4xl font-display font-black tracking-tight">
               Device Compare
@@ -397,36 +395,13 @@ const DeviceCompare = ({ onComparisonReady }) => {
           </div>
         </div>
 
-        {/* Catalog summary chips — informational only. The first slot accepts
-            ANY device; B locks to A's category automatically. */}
-        <div className="relative mt-6 flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-black uppercase tracking-widest text-white/50 mr-1">
-            In catalog:
-          </span>
-          {Object.entries(grouped).map(([cat, list]) => {
-            const meta = CATEGORY_META[cat] || { label: cat, icon: '✨' };
-            const isActive = activeCategory === cat;
-            return (
-              <span
-                key={cat}
-                className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${
-                  isActive
-                    ? 'bg-white text-slate-900 shadow-lg'
-                    : 'bg-white/10 text-white/70 border border-white/10'
-                }`}
-              >
-                <span>{meta.icon}</span>
-                <span>{meta.label}</span>
-                <span className="text-[10px] opacity-60">{list.length}</span>
-              </span>
-            );
-          })}
-          {deviceA && deviceB && !categoriesMatch && (
-            <span className="ml-2 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider bg-amber-500/20 text-amber-200 border border-amber-300/30">
+        {deviceA && deviceB && !categoriesMatch && (
+          <div className="relative mt-6 flex items-center gap-2 flex-wrap">
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider bg-amber-500/20 text-amber-200 border border-amber-300/30">
               CROSS-CATEGORY MIX
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* VS picker */}
@@ -537,7 +512,7 @@ const DeviceCompare = ({ onComparisonReady }) => {
               ))}
             </div>
             <h3 className="font-display text-xl font-black text-slate-900">
-              Gemini is dissecting every spec…
+              Analyzing every spec…
             </h3>
             <p className="text-sm text-slate-500 mt-2">
               Comparing performance, display, camera, battery, software, build and value.
@@ -814,8 +789,7 @@ const DeviceCompare = ({ onComparisonReady }) => {
                 <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed">
                   <ReactMarkdown>{report.summary}</ReactMarkdown>
                 </div>
-                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Model: <span className="font-bold text-slate-600">{report.model_used}</span></span>
+                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-end text-[11px] text-slate-400">
                   <span className="flex items-center gap-1">
                     <Sparkles className="w-3 h-3" /> Ask the chat anything about this comparison →
                   </span>

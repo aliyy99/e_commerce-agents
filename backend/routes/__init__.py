@@ -9,6 +9,7 @@ from .stream         import router as stream_router
 from .chat           import router as chat_router
 from .price_history  import router as price_history_router
 from .compare_devices import router as compare_devices_router
+from .campaigns       import router as campaigns_router
 
 __all__ = [
     "vision_router",
@@ -21,4 +22,5 @@ __all__ = [
     "chat_router",
     "price_history_router",
     "compare_devices_router",
+    "campaigns_router",
 ]

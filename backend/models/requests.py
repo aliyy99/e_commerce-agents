@@ -35,6 +35,10 @@ class VisionRequest(BaseModel):
         None,
         description="Base64-encoded image string (without data-URI prefix)."
     )
+    mime_type: Optional[str] = Field(
+        default="image/jpeg",
+        description="Original image MIME type (image/jpeg, image/png, image/webp, ...).",
+    )
     locale: str = Field(default="tr", description="ISO-639 language code for the response.")
 
     @model_validator(mode="after")

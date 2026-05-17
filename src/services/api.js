@@ -46,13 +46,21 @@ function buildVisionPayload(imageInput, locale = 'tr') {
   const trimmed = imageInput.trim();
 
   if (trimmed.startsWith('data:')) {
-    const [, base64] = trimmed.split(',', 2);
+    // Parse "data:<mime>;base64,<payload>" so the backend tells Gemini the
+    // real MIME (PNG / WebP / HEIC). Sending image/jpeg for a PNG can make
+    // the model treat the image as opaque bytes and hallucinate.
+    const match = trimmed.match(/^data:([^;,]+)(?:;[^,]*)?,(.+)$/);
+    if (!match) {
+      throw new Error('Could not parse the image data URL.');
+    }
+    const [, mimeType, base64] = match;
     if (!base64) {
       throw new Error('Could not decode the Base64 image data.');
     }
     return {
       input_type: 'base64',
       image_data: base64,
+      mime_type: (mimeType || 'image/jpeg').toLowerCase(),
       locale,
     };
   }
@@ -120,6 +128,20 @@ export async function compareDevices({ deviceA, deviceB, locale = 'tr' }) {
     body: JSON.stringify({
       device_a: toDevicePayload(deviceA),
       device_b: toDevicePayload(deviceB),
+      locale,
+    }),
+  });
+}
+
+export async function fetchCampaigns({ connectedAccounts = [], locale = 'tr' } = {}) {
+  return apiFetch('/campaigns', {
+    method: 'POST',
+    body: JSON.stringify({
+      connected_accounts: connectedAccounts.map((a) => ({
+        id: a.id,
+        name: a.name,
+        domain: a.domain || null,
+      })),
       locale,
     }),
   });

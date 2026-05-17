@@ -1,122 +1,399 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Tag, Ticket, BellRing, Copy, Check } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Tag,
+  Ticket,
+  Newspaper,
+  Copy,
+  Check,
+  RefreshCw,
+  ExternalLink,
+  Sparkles,
+  TrendingDown,
+  Megaphone,
+  Rocket,
+  Flame,
+  Globe,
+  AlertCircle,
+} from 'lucide-react';
+import { fetchCampaigns } from '../services/api';
+import { ECOMMERCE_ACCOUNTS, getConnectedAccounts } from '../data/ecommerceAccounts';
 
-const Campaigns = () => {
-  const [copiedId, setCopiedId] = React.useState(null);
+// Look up the store metadata (gradient, initials) by id so coupons can render
+// a consistent badge that matches the connected-accounts list on the profile.
+const STORE_LOOKUP = ECOMMERCE_ACCOUNTS.reduce((acc, s) => {
+  acc[s.id] = s;
+  return acc;
+}, {});
 
-  const copyToClipboard = (id, code) => {
-    navigator.clipboard.writeText(code);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+// News category → icon + accent colour. Falls back to a neutral "industry"
+// look so unknown categories still render cleanly.
+const NEWS_CATEGORY_META = {
+  'price-drop':  { label: 'Fiyat Düşüşü', icon: TrendingDown, badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'bg-emerald-500' },
+  'new-product': { label: 'Yeni Ürün',    icon: Rocket,       badge: 'bg-violet-50 text-violet-700 border-violet-200',    accent: 'bg-violet-500' },
+  'launch':      { label: 'Lansman',      icon: Megaphone,    badge: 'bg-blue-50 text-blue-700 border-blue-200',          accent: 'bg-blue-500' },
+  'deal':        { label: 'Kampanya',     icon: Flame,        badge: 'bg-orange-50 text-orange-700 border-orange-200',    accent: 'bg-orange-500' },
+  'industry':    { label: 'Sektör',       icon: Globe,        badge: 'bg-slate-50 text-slate-600 border-slate-200',       accent: 'bg-slate-500' },
+};
+
+const TABS = [
+  { id: 'coupons', label: 'Kuponlar', icon: Ticket },
+  { id: 'news',    label: 'Haberler', icon: Newspaper },
+];
+
+const StoreBadge = ({ storeId, fallbackName }) => {
+  const meta = STORE_LOOKUP[storeId];
+  const name = meta?.name || fallbackName || storeId;
+  const color = meta?.color || 'from-slate-500 to-slate-700';
+  const initials = meta?.initials || name.slice(0, 2).toUpperCase();
+  return (
+    <div className="inline-flex items-center gap-2 pl-1 pr-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm">
+      <span className={`w-6 h-6 rounded-full bg-gradient-to-br ${color} text-white text-[10px] font-black flex items-center justify-center`}>
+        {initials}
+      </span>
+      <span className="text-[11px] font-bold text-slate-700">{name}</span>
+    </div>
+  );
+};
+
+const CouponCard = ({ coupon, copiedId, onCopy }) => {
+  const copied = copiedId === coupon.id;
+  return (
+    <motion.article
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-primary/30 transition-all overflow-hidden flex flex-col"
+    >
+      <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full bg-primary/5" />
+      <div className="relative flex items-start justify-between gap-3 mb-4">
+        <StoreBadge storeId={coupon.store_id} fallbackName={coupon.store_name} />
+        {coupon.discount_label && (
+          <span className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-black uppercase tracking-wide whitespace-nowrap">
+            {coupon.discount_label}
+          </span>
+        )}
+      </div>
+
+      <h4 className="text-base font-black text-slate-900 leading-snug mb-1.5">
+        {coupon.title}
+      </h4>
+      <p className="text-[13px] text-slate-500 leading-relaxed mb-4 flex-1">
+        {coupon.description}
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {coupon.category && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase tracking-wider">
+            {coupon.category}
+          </span>
+        )}
+        {coupon.expires_label && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 uppercase tracking-wider">
+            {coupon.expires_label}
+          </span>
+        )}
+      </div>
+
+      {coupon.code ? (
+        <div className="flex items-center justify-between gap-2 p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl">
+          <span className="font-mono font-bold text-slate-800 tracking-wider text-sm truncate">
+            {coupon.code}
+          </span>
+          <button
+            type="button"
+            onClick={() => onCopy(coupon)}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-600 hover:text-primary hover:border-primary/40 transition-colors"
+          >
+            {copied ? <><Check className="w-3.5 h-3.5 text-emerald-500" /> Kopyalandı</> : <><Copy className="w-3.5 h-3.5" /> Kopyala</>}
+          </button>
+        </div>
+      ) : coupon.url ? (
+        <a
+          href={coupon.url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors"
+        >
+          Kampanyaya Git <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      ) : (
+        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500 text-center">
+          Kupon kodu yok — kampanya otomatik uygulanır.
+        </div>
+      )}
+    </motion.article>
+  );
+};
+
+const NewsCard = ({ item }) => {
+  const meta = NEWS_CATEGORY_META[item.category] || NEWS_CATEGORY_META.industry;
+  const Icon = meta.icon;
+  return (
+    <motion.article
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-primary/30 transition-all overflow-hidden"
+    >
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${meta.accent}`} />
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-black uppercase tracking-wide ${meta.badge}`}>
+          <Icon className="w-3.5 h-3.5" />
+          {meta.label}
+        </span>
+        {item.date_label && (
+          <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+            {item.date_label}
+          </span>
+        )}
+      </div>
+      <h4 className="text-base font-black text-slate-900 leading-snug mb-2">
+        {item.title}
+      </h4>
+      <p className="text-[13px] text-slate-500 leading-relaxed mb-3">
+        {item.summary}
+      </p>
+      <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+        <span className="text-[11px] text-slate-400 truncate">
+          {item.source ? `Kaynak: ${item.source}` : 'Web kaynaklı'}
+        </span>
+        {item.url && (
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline whitespace-nowrap"
+          >
+            Habere Git <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+      </div>
+    </motion.article>
+  );
+};
+
+const SkeletonGrid = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+    {[0, 1, 2, 3, 4, 5].map((i) => (
+      <div key={i} className="h-56 bg-white border border-slate-100 rounded-2xl animate-pulse">
+        <div className="h-full p-5 flex flex-col gap-3">
+          <div className="h-5 w-24 bg-slate-100 rounded-full" />
+          <div className="h-4 w-3/4 bg-slate-100 rounded" />
+          <div className="h-3 w-full bg-slate-100 rounded" />
+          <div className="h-3 w-5/6 bg-slate-100 rounded" />
+          <div className="mt-auto h-10 bg-slate-100 rounded-xl" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const EmptyState = ({ icon: Icon, title, hint }) => (
+  <div className="flex flex-col items-center justify-center text-center bg-white border border-slate-100 rounded-2xl py-16 px-6">
+    <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300 mb-4">
+      <Icon className="w-7 h-7" />
+    </div>
+    <h4 className="text-base font-black text-slate-900 mb-1">{title}</h4>
+    <p className="text-sm text-slate-500 max-w-xs">{hint}</p>
+  </div>
+);
+
+const Campaigns = ({ onDataLoaded }) => {
+  const [activeTab, setActiveTab] = useState('coupons');
+  const [coupons, setCoupons] = useState([]);
+  const [news, setNews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+  const [grounded, setGrounded] = useState(false);
+  const [generatedAt, setGeneratedAt] = useState(null);
+
+  const connected = useMemo(() => getConnectedAccounts(), []);
+
+  const loadCampaigns = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchCampaigns({ connectedAccounts: connected });
+      setCoupons(Array.isArray(data?.coupons) ? data.coupons : []);
+      setNews(Array.isArray(data?.news) ? data.news : []);
+      setGrounded(!!data?.grounded);
+      setGeneratedAt(new Date());
+      onDataLoaded?.({
+        coupons: data?.coupons || [],
+        news: data?.news || [],
+        connectedAccounts: connected,
+        generatedAt: new Date().toISOString(),
+        grounded: !!data?.grounded,
+      });
+    } catch (err) {
+      console.error('Campaigns fetch failed:', err);
+      setError(err?.message || 'Kampanyalar yüklenemedi.');
+    } finally {
+      setLoading(false);
+    }
+  }, [connected, onDataLoaded]);
+
+  useEffect(() => {
+    loadCampaigns();
+  }, [loadCampaigns]);
+
+  const handleCopy = (coupon) => {
+    if (!coupon.code) return;
+    navigator.clipboard?.writeText(coupon.code).catch(() => {});
+    setCopiedId(coupon.id);
+    setTimeout(() => setCopiedId(null), 1800);
   };
 
-  const campaigns = [
-    {
-      id: 1,
-      type: 'coupon',
-      title: 'Tech Festival Sale',
-      description: 'Instant 15% discount on selected tech products. Weekend only.',
-      code: 'TECHFEST15',
-      expire: '2 days left'
-    },
-    {
-      id: 2,
-      type: 'coupon',
-      title: 'First Purchase Special',
-      description: '$50 discount valid on your first electronics purchase via Techno Track.',
-      code: 'SAGE50',
-      expire: '7 days left'
-    },
-    {
-      id: 3,
-      type: 'news',
-      title: 'Apple Education Sales Started',
-      description: 'Special pricing and free AirPods for university students and teachers on Mac and iPad models. Limited stock.',
-      date: 'Today'
-    },
-    {
-      id: 4,
-      type: 'news',
-      title: 'Samsung Unpacked Event',
-      description: 'Announcements about next-gen foldable devices and AI integration coming soon. Don\'t miss event-day pre-order benefits.',
-      date: 'Tomorrow'
-    }
-  ];
+  const tabCounts = { coupons: coupons.length, news: news.length };
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
-          <Tag className="w-6 h-6" />
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
+            <Tag className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-display font-black text-slate-900">Kampanyalar</h2>
+            <p className="text-slate-500 mt-1 text-sm">
+              Bağlı hesaplarına özel kuponlar ve teknoloji dünyasından son haberler.
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-3xl font-display font-black text-slate-900">Campaigns and Coupons</h2>
-          <p className="text-slate-500 mt-1 text-sm">Latest deals, discount codes, and industry news.</p>
+
+        <div className="flex items-center gap-3">
+          {generatedAt && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              {grounded ? 'Web kaynaklı' : 'AI özetli'} · {generatedAt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={loadCampaigns}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Yenile
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Coupons Column */}
-        <div className="space-y-6">
-          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-            <Ticket className="w-5 h-5 text-accent-rose" />
-            Discount Coupons
-          </h3>
-          {campaigns.filter(c => c.type === 'coupon').map((coupon) => (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={coupon.id} 
-              className="glass-card p-6 bg-white border-slate-100 flex flex-col justify-between"
+      {/* Connected accounts strip */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+          Bağlı hesaplar:
+        </span>
+        {connected.length > 0 ? (
+          connected.map((acc) => (
+            <span
+              key={acc.id}
+              className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-white border border-slate-200 shadow-sm"
             >
-              <div>
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-lg font-black text-slate-900">{coupon.title}</h4>
-                  <span className="text-[10px] font-bold px-2 py-1 bg-red-50 text-red-600 rounded uppercase tracking-widest">{coupon.expire}</span>
-                </div>
-                <p className="text-sm text-slate-500 mb-6">{coupon.description}</p>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 border-dashed">
-                <span className="font-mono font-bold text-slate-700 tracking-wider">{coupon.code}</span>
-                <button 
-                  onClick={() => copyToClipboard(coupon.id, coupon.code)}
-                  className="p-2 bg-white rounded-lg shadow-sm text-slate-400 hover:text-primary transition-colors border border-slate-100"
-                  title="Copy Code"
-                >
-                  {copiedId === coupon.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* News Column */}
-        <div className="space-y-6">
-          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-            <BellRing className="w-5 h-5 text-primary" />
-            Special Discount News
-          </h3>
-          {campaigns.filter(c => c.type === 'news').map((news) => (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={news.id} 
-              className="glass-card p-6 bg-white border-slate-100 relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-1 h-full bg-primary/20"></div>
-              <div className="flex justify-between items-start mb-2">
-                <h4 className="text-lg font-black text-slate-900">{news.title}</h4>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">{news.date}</span>
-              </div>
-              <p className="text-sm text-slate-500 leading-relaxed">{news.description}</p>
-              <button className="mt-4 text-xs font-black text-primary uppercase tracking-widest hover:underline">
-                View Details
-              </button>
-            </motion.div>
-          ))}
-        </div>
+              <span className={`w-5 h-5 rounded-full bg-gradient-to-br ${acc.color} text-white text-[9px] font-black flex items-center justify-center`}>
+                {acc.initials}
+              </span>
+              <span className="text-[11px] font-bold text-slate-700">{acc.name}</span>
+            </span>
+          ))
+        ) : (
+          <span className="text-[11px] text-slate-400">
+            Profil sayfasından e-ticaret hesaplarını bağlayarak sana özel kuponlar göster.
+          </span>
+        )}
       </div>
+
+      {/* Tab switcher */}
+      <div className="inline-flex p-1 bg-slate-100 rounded-xl">
+        {TABS.map((tab) => {
+          const TabIcon = tab.icon;
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative px-4 sm:px-5 py-2 rounded-lg text-xs font-black transition-colors flex items-center gap-2 ${
+                active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <TabIcon className="w-4 h-4" />
+              {tab.label}
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${active ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-500'}`}>
+                {tabCounts[tab.id] ?? 0}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+          <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-rose-700">Kampanyalar yüklenemedi</p>
+            <p className="text-xs text-rose-600 mt-0.5">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={loadCampaigns}
+            className="text-xs font-bold text-rose-700 hover:underline whitespace-nowrap"
+          >
+            Tekrar dene
+          </button>
+        </div>
+      )}
+
+      {/* Content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab + (loading ? '-loading' : '-ready')}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+        >
+          {loading ? (
+            <SkeletonGrid />
+          ) : activeTab === 'coupons' ? (
+            coupons.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {coupons.map((coupon) => (
+                  <CouponCard
+                    key={coupon.id}
+                    coupon={coupon}
+                    copiedId={copiedId}
+                    onCopy={handleCopy}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={Ticket}
+                title="Şu anda aktif kupon bulunamadı"
+                hint="Bağlı hesaplarında aktif bir kampanya yok. Birkaç dakika sonra yeniden dene veya yeni bir hesap bağla."
+              />
+            )
+          ) : news.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {news.map((item) => (
+                <NewsCard key={item.id} item={item} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Newspaper}
+              title="Henüz haber yok"
+              hint="Web kaynaklarından güncel teknoloji haberi çekilemedi. Lütfen biraz sonra tekrar dene."
+            />
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 };

@@ -6,7 +6,7 @@ import { chatWithAssistant } from '../services/api';
 
 const MAX_INPUT_HEIGHT = 120;
 
-const ChatWidget = ({ contextProduct, priceHistoryReport = null, analystReport = null, comparisonContext = null }) => {
+const ChatWidget = ({ contextProduct, priceHistoryReport = null, analystReport = null, comparisonContext = null, campaignsContext = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'assistant', content: "Hello! 👋 I'm Techno Track, your personal shopping assistant. I can help you with price comparisons, technical details, and buying advice. How can I help you today?" }
@@ -125,6 +125,21 @@ const ChatWidget = ({ contextProduct, priceHistoryReport = null, analystReport =
           },
         };
       }
+      // Campaigns context lets the assistant answer "which coupons do I have?"
+      // or "is there a discount on iPhone right now?" using the same data the
+      // user sees on the Campaigns page.
+      if (campaignsContext && (campaignsContext.coupons?.length || campaignsContext.news?.length)) {
+        contextPayload = {
+          ...(contextPayload || {}),
+          campaigns: {
+            coupons: campaignsContext.coupons || [],
+            news: campaignsContext.news || [],
+            connected_accounts: campaignsContext.connectedAccounts || [],
+            generated_at: campaignsContext.generatedAt || null,
+            grounded: !!campaignsContext.grounded,
+          },
+        };
+      }
       const { reply } = await chatWithAssistant({
         history: messages,
         userMessage,
@@ -176,7 +191,7 @@ const ChatWidget = ({ contextProduct, priceHistoryReport = null, analystReport =
                   <h3 className="text-sm font-black tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>Techno Track</h3>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse" />
-                    <span className="text-[10px] text-white/80 font-medium">Powered by Gemini</span>
+                    <span className="text-[10px] text-white/80 font-medium">AI Shopping Assistant</span>
                   </div>
                 </div>
               </div>
@@ -256,6 +271,13 @@ const ChatWidget = ({ contextProduct, priceHistoryReport = null, analystReport =
                 <div className="mb-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100 flex items-center gap-2">
                   <span className="text-[10px] text-amber-700 font-bold truncate">
                     ⚖️ {comparisonContext.deviceA?.name} vs {comparisonContext.deviceB?.name}
+                  </span>
+                </div>
+              )}
+              {campaignsContext && ((campaignsContext.coupons?.length || 0) + (campaignsContext.news?.length || 0)) > 0 && (
+                <div className="mb-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-2">
+                  <span className="text-[10px] text-emerald-700 font-bold truncate">
+                    🎟️ {campaignsContext.coupons?.length || 0} kupon · 📰 {campaignsContext.news?.length || 0} haber yüklü
                   </span>
                 </div>
               )}

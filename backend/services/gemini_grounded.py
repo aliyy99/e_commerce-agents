@@ -179,7 +179,17 @@ async def _call_once(
     resp = await client.post(url, json=body)
     if resp.status_code != 200:
         snippet = resp.text[:300]
-        if is_auth_error(snippet) or "API key" in snippet:
+        # Hard "your key is broken" failures short-circuit the cascade. A plain
+        # PERMISSION_DENIED, by contrast, often means "this model has zero
+        # quota on your tier" (very common for Pro variants on free keys) —
+        # treat those as transient so the cascade can fall through to the
+        # next, lower-capability model.
+        hard_auth_markers = (
+            "API_KEY_INVALID",
+            "API key not valid",
+            "API key expired",
+        )
+        if any(m in snippet for m in hard_auth_markers):
             raise GeminiAuthError(
                 "Gemini API anahtarı geçersiz veya yetkisiz. backend/.env içindeki "
                 "GEMINI_API_KEY değerini yenileyin."
@@ -215,6 +225,7 @@ async def call_gemini(
     primary_model: str,
     fallback_model: Optional[str],
     *,
+    extra_models: Optional[list[str]] = None,
     system: str,
     user_prompt: str,
     use_search: bool = True,
@@ -225,13 +236,24 @@ async def call_gemini(
     timeout_seconds: float = 90.0,
 ) -> GroundedResult:
     """
-    Two-tier async Gemini call. Tries ``primary_model`` first; on transient
-    failure or quota error, falls back to ``fallback_model`` once.
+    Multi-tier async Gemini call. Tries ``primary_model`` first; on transient
+    failure or quota error, falls back to ``fallback_model`` and then each
+    entry in ``extra_models`` in order. The first model that returns a usable
+    response wins — useful for "always use the highest-capability model that
+    actually works" cascades (e.g. Pro → Pro Preview → Flash → Flash-Lite).
 
-    The two-tier ceiling (no retry per model) keeps the worst case at 2 API
-    calls so a thin quota lasts. Auth errors short-circuit both candidates.
+    Auth errors short-circuit the cascade.
     """
-    candidates = [m for m in [primary_model, fallback_model] if m]
+    candidates = [m for m in [primary_model, fallback_model, *(extra_models or [])] if m]
+    # De-dup while preserving order so ``primary == fallback`` doesn't waste a slot.
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for m in candidates:
+        if m in seen:
+            continue
+        seen.add(m)
+        deduped.append(m)
+    candidates = deduped
     if not candidates:
         raise ValueError("At least one Gemini model name is required.")
 

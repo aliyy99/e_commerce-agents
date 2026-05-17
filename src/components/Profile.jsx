@@ -16,15 +16,7 @@ import {
   Trash2,
   ShieldCheck,
 } from 'lucide-react';
-
-const ECOMMERCE_ACCOUNTS = [
-  { id: 'hepsiburada', name: 'Hepsiburada', color: 'from-orange-400 to-orange-600', initials: 'HB', email: 'alex.rivera@hepsi.com', connected: true },
-  { id: 'trendyol',    name: 'Trendyol',    color: 'from-orange-500 to-red-500',    initials: 'TY', email: 'alex@trendyol.com', connected: true },
-  { id: 'amazon',      name: 'Amazon',      color: 'from-slate-700 to-slate-900',   initials: 'AM', email: null, connected: false },
-  { id: 'vatan',       name: 'Vatan Bilgisayar', color: 'from-yellow-400 to-amber-600', initials: 'VB', email: 'rivera@vatan.com', connected: true },
-  { id: 'mediamarkt',  name: 'MediaMarkt',   color: 'from-red-500 to-rose-600',     initials: 'MM', email: null, connected: false },
-  { id: 'n11',         name: 'N11',          color: 'from-fuchsia-500 to-violet-600', initials: 'N11', email: null, connected: false },
-];
+import { ECOMMERCE_ACCOUNTS } from '../data/ecommerceAccounts';
 
 const SAVED_CARDS = [
   { id: 'card-1', label: 'Salary Card', brand: 'Visa',       last4: '4827', expiry: '08/28', gradient: 'from-indigo-600 via-blue-600 to-purple-700' },
@@ -197,7 +189,7 @@ const Profile = ({ forceTab }) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-bold text-slate-900">AI Assistant Language</p>
-                      <p className="text-xs text-slate-500">Gemini response language</p>
+                      <p className="text-xs text-slate-500">Assistant response language</p>
                     </div>
                     <select className="bg-slate-50 border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none" defaultValue="English">
                       <option value="Turkish">Turkish</option>
@@ -284,9 +276,14 @@ const Profile = ({ forceTab }) => {
                         <CheckCircle2 className="w-3 h-3" /> Connected
                       </span>
                     ) : (
-                      <button className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider hover:bg-slate-700 transition-colors">
+                      <a
+                        href={acc.loginUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider hover:bg-slate-700 transition-colors"
+                      >
                         <LinkIcon className="w-3 h-3" /> Connect
-                      </button>
+                      </a>
                     )}
                   </motion.div>
                 ))}

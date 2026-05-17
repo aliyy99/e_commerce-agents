@@ -483,14 +483,11 @@ const AnalystReport = ({ analysis, modelUsed }) => {
           <div className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">
             {analysis.final_recommendation}
           </div>
-          {modelUsed && (
-            <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
-              <span>Model: <span className="font-bold text-slate-200">{modelUsed}</span></span>
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Ask the chat for follow-ups →
-              </span>
-            </div>
-          )}
+          <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-end text-[11px] text-slate-400">
+            <span className="flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> Ask the chat for follow-ups →
+            </span>
+          </div>
         </div>
       )}
     </div>

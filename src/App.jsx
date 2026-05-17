@@ -12,13 +12,19 @@ import PriceGraphic from './components/PriceGraphic';
 import Orders from './components/Orders';
 import DeviceCompare from './components/DeviceCompare';
 import VisionMatchModal from './components/VisionMatchModal';
-import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft } from 'lucide-react';
+import DiscoverFilters from './components/DiscoverFilters';
+import { Bell, User, Search, Settings, ChevronDown, LogOut, Heart, UserCircle, Camera, ArrowLeft, Compass, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'react-hot-toast';
 import { sampleProducts, brandModels } from './data/products';
 import { analyzeImage } from './services/api';
 import { matchProductFromVision, brandKeyFromVision } from './utils/productMatch';
 import { filterProducts, findBestProductMatch, buildSuggestions } from './utils/searchMatch';
+import {
+  applyDiscoverFilters,
+  extractFilterOptions,
+  EMPTY_DISCOVER_FILTERS,
+} from './utils/productFilters';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -65,6 +71,18 @@ function App() {
   // Latest device comparison — kept around so the ChatWidget can answer
   // follow-up questions about it ("which is better for gaming?", etc.).
   const [latestComparison, setLatestComparison] = useState(null);
+
+  // Latest campaigns snapshot (coupons + tech news) — kept here so the chat
+  // assistant can answer questions like "hangi kuponları kullanabilirim?" or
+  // "iPhone'da indirim var mı?" without re-running the search.
+  const [campaignsData, setCampaignsData] = useState(null);
+
+  // Discover (Keşfet) page filter state — driven by the left sidebar chips.
+  const [discoverFilters, setDiscoverFilters] = useState(EMPTY_DISCOVER_FILTERS);
+  const filterOptions = useMemo(() => extractFilterOptions(sampleProducts), []);
+  const resetDiscoverFilters = useCallback(() => {
+    setDiscoverFilters(EMPTY_DISCOVER_FILTERS);
+  }, []);
 
   const handleImageUpload = (e) => {
     const input = e.target;
@@ -122,12 +140,23 @@ function App() {
     setShowSuggestions(false);
     setCommittedQuery(searchQuery);
 
-    // Image-driven path: hand the photo to the Vision Agent (Gemini 3 Flash with Pro fallback).
+    // Image-driven path: hand the photo to the Vision Agent (Pro → Flash cascade).
     if (uploadedImage) {
       try {
         const result = await analyzeImage(uploadedImage, 'tr');
+        const confidence = typeof result.confidence === 'number' ? result.confidence : 0;
 
-        // Confident catalog hit → jump straight to the product.
+        // Hard fail: model couldn't see a product at all. No point searching.
+        if (confidence < 0.3 && !result.product_name && !result.brand) {
+          setVisionError(
+            'Görüntüden ürünü tanıyamadık. Daha net bir fotoğraf çekin veya ürün adını yazın.',
+          );
+          setIsRunning(false);
+          return;
+        }
+
+        // Confident catalog hit → jump straight to the product. (Match helper
+        // already enforces brand parity + token-overlap + min confidence.)
         const matched = matchProductFromVision(result, sampleProducts);
         if (matched) {
           setSelectedProduct(matched);
@@ -148,12 +177,15 @@ function App() {
           return;
         }
 
-        // Nothing decisive — fall back to whatever keywords Vision returned.
-        const fallbackQuery = (result.product_name || result.search_keywords || '').trim();
+        // Vision gave us a product name but it didn't pass our catalog filter
+        // → use it as a search query instead of force-selecting a wrong row.
+        const fallbackQuery = (result.product_name || result.search_keywords || result.brand || '').trim();
         if (fallbackQuery) {
-          finalizeQuery(fallbackQuery, { autoSelect: true });
+          finalizeQuery(fallbackQuery, { autoSelect: false });
         } else {
-          setVisionError("We couldn't identify the product from the image. Try a different photo or type the name.");
+          setVisionError(
+            "Görüntüden ürünü tanıyamadık. Farklı bir fotoğraf deneyin veya ürün adını yazın.",
+          );
         }
       } catch (err) {
         console.error('Vision analysis failed:', err);
@@ -335,11 +367,11 @@ function App() {
   );
 
   const displayedProducts = useMemo(() => {
-    if (isSearching && committedQuery) {
-      return filterProducts(committedQuery, sampleProducts);
-    }
-    return sampleProducts;
-  }, [isSearching, committedQuery]);
+    const base = isSearching && committedQuery
+      ? filterProducts(committedQuery, sampleProducts)
+      : sampleProducts;
+    return applyDiscoverFilters(base, discoverFilters);
+  }, [isSearching, committedQuery, discoverFilters]);
 
   return (
     <div className="min-h-screen bg-background text-slate-900 font-sans selection:bg-primary/20">
@@ -530,76 +562,88 @@ function App() {
         <div className="px-10 py-8 max-w-[1600px] mx-auto overflow-hidden">
           <AnimatePresence mode="wait">
             {currentPage === 'dashboard' && !selectedProduct && (
-              <motion.div 
+              <motion.div
                 key="dashboard-discover"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
                 className="space-y-8"
               >
-                {isSearching && (
-                  <h3 className="text-xl font-black text-slate-900 mb-4">
-                    Results for "{committedQuery}" ({displayedProducts.length})
-                  </h3>
-                )}
-                {!isSearching && (
-                  <h3 className="text-2xl font-black text-slate-900 mb-6">Featured Products</h3>
-                )}
-
-                {isRunning ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {[1,2,3,4].map(i => <div key={i} className="h-80 skeleton rounded-2xl" />)}
+                {/* Keşfet hero */}
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Compass className="w-6 h-6" />
                   </div>
-                ) : (
-                  <div className="space-y-12">
-                    {displayedProducts.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {displayedProducts.map(product => (
-                          <ProductCard 
-                            key={product.id} 
-                            product={product} 
-                            onClick={setSelectedProduct}
-                            onFavorite={toggleFavorite}
-                            onTrack={toggleTracked}
-                            isFavorite={favorites.some(f => f.id === product.id)}
-                            isTracked={tracked.some(t => t.id === product.id)}
-                            analyzedPrice={analysisReports?.[product.id]?.lowestPrice ?? null}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="glass-card p-12 text-center bg-white border-slate-100">
-                        <p className="text-slate-500">No products found matching your search.</p>
-                      </div>
-                    )}
-
-                    {isSearching && (
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-4">
-                          <div className="h-px bg-slate-200 flex-1" />
-                          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Alternative Options</h3>
-                          <div className="h-px bg-slate-200 flex-1" />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                          {sampleProducts
-                            .filter(p => !displayedProducts.find(dp => dp.id === p.id))
-                            .slice(0, 4)
-                            .map(product => (
-                              <ProductCard 
-                                key={product.id} 
-                                product={product} 
-                                onClick={setSelectedProduct}
-                                onFavorite={toggleFavorite}
-                                onTrack={toggleTracked}
-                                isFavorite={favorites.some(f => f.id === product.id)}
-                                isTracked={tracked.some(t => t.id === product.id)}
-                              />
-                            ))}
-                        </div>
-                      </div>
-                    )}
+                  <div className="flex-1">
+                    <h2 className="text-3xl font-display font-black text-slate-900">Keşfet</h2>
+                    <p className="text-slate-500 text-sm mt-1">
+                      Kategorilere göz at veya soldaki filtrelerle aradığın niş cihazı bul.
+                    </p>
                   </div>
-                )}
+                  <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    {displayedProducts.length} ürün
+                  </span>
+                </div>
+
+                {/* Horizontal filters */}
+                <DiscoverFilters
+                  options={filterOptions}
+                  filters={discoverFilters}
+                  onChange={setDiscoverFilters}
+                  onReset={resetDiscoverFilters}
+                />
+
+                {/* Grid */}
+                <div className="space-y-6">
+                  {isSearching && (
+                    <h3 className="text-lg font-black text-slate-900">
+                      "{committedQuery}" için sonuçlar ({displayedProducts.length})
+                    </h3>
+                  )}
+
+                  {isRunning ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="h-80 skeleton rounded-2xl" />
+                      ))}
+                    </div>
+                  ) : displayedProducts.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {displayedProducts.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          onClick={setSelectedProduct}
+                          onFavorite={toggleFavorite}
+                          onTrack={toggleTracked}
+                          isFavorite={favorites.some((f) => f.id === product.id)}
+                          isTracked={tracked.some((t) => t.id === product.id)}
+                          analyzedPrice={analysisReports?.[product.id]?.lowestPrice ?? null}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center">
+                      <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300 mb-4">
+                        <Compass className="w-7 h-7" />
+                      </div>
+                      <h4 className="text-base font-black text-slate-900 mb-1">
+                        Filtrelerinize uyan ürün bulunamadı
+                      </h4>
+                      <p className="text-sm text-slate-500 mb-5">
+                        Bazı filtreleri kaldırarak daha geniş sonuçlara ulaşabilirsiniz.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={resetDiscoverFilters}
+                        className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors"
+                      >
+                        Filtreleri sıfırla
+                      </button>
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
 
@@ -777,7 +821,7 @@ function App() {
 
             {currentPage === 'campaigns' && (
               <motion.div key="campaigns" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                <Campaigns />
+                <Campaigns onDataLoaded={setCampaignsData} />
               </motion.div>
             )}
 
@@ -820,6 +864,7 @@ function App() {
         priceHistoryReport={selectedProduct ? priceHistoryReports?.[selectedProduct.id] : null}
         analystReport={selectedProduct ? analysisReports?.[selectedProduct.id] : null}
         comparisonContext={latestComparison}
+        campaignsContext={campaignsData}
       />
 
       {/* Image-search disambiguation */}
