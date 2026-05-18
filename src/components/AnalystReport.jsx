@@ -440,9 +440,9 @@ const AnalystReport = ({ analysis, modelUsed }) => {
             </div>
             <div className="flex-1">
               <div className="text-[10px] font-black uppercase tracking-widest text-sky-600">
-                Google Search ile doğrulandı
+                Verified via Google Search
               </div>
-              <h4 className="font-display text-lg font-black text-slate-900">Kaynaklar</h4>
+              <h4 className="font-display text-lg font-black text-slate-900">Sources</h4>
             </div>
             <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider bg-sky-50 text-sky-700">
               {analysis.grounding_sources.length}

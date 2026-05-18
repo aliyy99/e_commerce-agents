@@ -35,25 +35,51 @@ const productLinksMapping = {
     "https://www.trendyol.com/samsung/galaxy-tab-s11-ultra-12gb-256gb-gri-tablet-p-978670937?boutiqueId=61&merchantId=1090273",
     "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-tab-s11-ultra-sm-x930-146-inc-12-gb-256-gb-tablet-gri-164212346.html",
     "https://www.vatanbilgisayar.com/samsung-galaxy-tab-s11-ultra-14-inc-android-tablet.html"
+  ],
+  "Samsung Galaxy Buds4 Pro Bluetooth Kulaklık Siyah (ANC)": [
+    "https://www.hepsiburada.com/samsung-galaxy-buds4-pro-bluetooth-kulaklik-siyah-anc-p-HBCV0000CWH2BY",
+    "https://www.trendyol.com/sr?q=samsung%20galaxy%20buds%204%20pro&qt=samsung%20galaxy%20buds%204%20pro&st=samsung%20galaxy%20buds%204%20pro&os=1&sk=1",
+    "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-buds4-pro-bluetooth-kulak-ici-kulaklik-siyah-1252511.html",
+    "https://www.vatanbilgisayar.com/samsung-galaxy-buds4-pro-anc-kulak-ici-kablosuz-bluetooth-kulaklik-siyah.html"
   ]
 };
 
-const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, isTracked, analysisReports, onAnalysisComplete }) => {
+const ProductAnalysis = ({ loading, product, initialVariantSelection = null, onFavorite, onTrack, isFavorite, isTracked, analysisReports, onAnalysisComplete }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [variantSelection, setVariantSelection] = useState(() => getDefaultVariantSelection(product));
+  // Initial selection precedence: caller-provided override (e.g. vision-detected
+  // colour) > variant `isDefault` flag > first option in each group.
+  const buildInitialSelection = (prod, override) => ({
+    ...getDefaultVariantSelection(prod),
+    ...(override || {}),
+  });
+  const [variantSelection, setVariantSelection] = useState(() =>
+    buildInitialSelection(product, initialVariantSelection),
+  );
   const [analysisError, setAnalysisError] = useState(null);
 
   useEffect(() => {
     setCurrentImageIndex(0);
-    setVariantSelection(getDefaultVariantSelection(product));
+    setVariantSelection(buildInitialSelection(product, initialVariantSelection));
     setAnalysisError(null);
-  }, [product]);
+    // initialVariantSelection is intentionally part of the dep list — when
+    // App.jsx swaps it out (e.g. vision re-runs on the same product) we want
+    // to re-apply the new colour.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, initialVariantSelection]);
 
   const variantState = useMemo(
     () => resolveProductVariant(product, variantSelection),
     [product, variantSelection],
   );
+
+  // When the user picks a different colour the gallery should snap back to
+  // the first image so they immediately see the new colour, not the 4th shot
+  // of the previous one.
+  const variantImagesKey = (variantState.images || []).join('|');
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [variantImagesKey]);
 
   if (loading || !product) {
     return (
@@ -68,11 +94,22 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
     );
   }
 
-  const { images, id: productId } = product;
+  const { id: productId } = product;
   const productName = variantState.displayName || product.name;
   const resolvedSpecs = variantState.specs;
-  const productImages = (images || []).filter((image) => typeof image === 'string' && image.trim());
-  const resolvedProductImages = productImages.length > 0 ? productImages : [PRODUCT_IMAGE_FALLBACK];
+  // Variant-aware images: each colour option can carry its own gallery; if
+  // the active variant set provides one, use it instead of the base product
+  // images. This is what makes "click Pink → see the pink phone".
+  const variantImages = (variantState.images || product.images || [])
+    .filter((image) => typeof image === 'string' && image.trim());
+  const resolvedProductImages = variantImages.length > 0 ? variantImages : [PRODUCT_IMAGE_FALLBACK];
+  const variantAveragePrice = (() => {
+    const prices = (variantState.stores || [])
+      .map((s) => Number(s?.price))
+      .filter((p) => Number.isFinite(p) && p > 0);
+    if (prices.length === 0) return null;
+    return prices.reduce((a, b) => a + b, 0) / prices.length;
+  })();
   const analysisPayload = analysisReports?.[productId];
   const deepAnalysis = analysisPayload?.deepAnalysis || null;
   const analysisModel = analysisPayload?.modelUsed || null;
@@ -239,6 +276,7 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
             <div className="space-y-4">
               {product.variants.map((group) => {
                 const active = variantSelection[group.label];
+                const isColorGroup = (group.label || '').toLowerCase() === 'color';
                 return (
                   <div key={group.label}>
                     <div className="flex items-center justify-between mb-2">
@@ -259,19 +297,20 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
                                 [group.label]: opt.shortValue,
                               }))
                             }
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                               isActive
                                 ? 'bg-primary text-white border-primary shadow-sm'
                                 : 'bg-white text-slate-600 border-slate-200 hover:border-primary/60 hover:text-primary'
                             }`}
                           >
-                            {opt.shortValue}
-                            {opt.priceDelta !== 0 && !isActive && (
-                              <span className={`ml-1.5 text-[10px] font-bold ${opt.priceDelta > 0 ? 'text-accent-rose' : 'text-emerald-500'}`}>
-                                {opt.priceDelta > 0 ? '+' : ''}
-                                {opt.priceDelta.toLocaleString()}
-                              </span>
+                            {isColorGroup && opt.swatch && (
+                              <span
+                                className={`w-3.5 h-3.5 rounded-full border ${isActive ? 'border-white/70' : 'border-slate-300'}`}
+                                style={{ background: opt.swatch }}
+                                aria-hidden="true"
+                              />
                             )}
+                            <span>{opt.shortValue}</span>
                           </button>
                         );
                       })}
@@ -280,13 +319,23 @@ const ProductAnalysis = ({ loading, product, onFavorite, onTrack, isFavorite, is
                 );
               })}
             </div>
+            {variantAveragePrice != null && (
+              <div className="flex items-center justify-between bg-primary/5 border border-primary/15 rounded-xl px-3 py-2 mt-2">
+                <span className="text-[11px] font-bold text-primary uppercase tracking-widest">
+                  Average Market Price
+                </span>
+                <span className="text-base font-black text-slate-900">
+                  {Math.round(variantAveragePrice).toLocaleString('en-US')} TL
+                </span>
+              </div>
+            )}
             {analyzedLowestPrice != null && (
-              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mt-2">
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
                 <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">
                   Analyzed Lowest{analyzedLowestSite ? ` · ${analyzedLowestSite}` : ''}
                 </span>
                 <span className="text-base font-black text-slate-900">
-                  {Math.round(analyzedLowestPrice).toLocaleString()} TL
+                  {Math.round(analyzedLowestPrice).toLocaleString('en-US')} TL
                 </span>
               </div>
             )}

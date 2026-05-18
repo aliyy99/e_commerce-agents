@@ -24,6 +24,7 @@ export function resolveProductVariant(product, selection) {
       displayName: product?.name || '',
       specs: product?.specs || [],
       stores: product?.stores || [],
+      images: product?.images || [],
       totalDelta: 0,
     };
   }
@@ -31,6 +32,10 @@ export function resolveProductVariant(product, selection) {
   let totalDelta = 0;
   let displayName = product.nameTemplate || product.name || '';
   const specOverrides = {};
+  // Iterate in variant order; the LAST option whose `images` array is non-empty
+  // wins. Convention: place the visual driver (e.g. Color) after non-visual
+  // groups (Storage, RAM) so colour selection drives the gallery.
+  let variantImages = null;
 
   for (const group of product.variants) {
     const chosenShort = selection?.[group.label];
@@ -46,9 +51,11 @@ export function resolveProductVariant(product, selection) {
     if (group.specLabel) {
       specOverrides[group.specLabel] = chosen.value;
     }
+    if (Array.isArray(chosen.images) && chosen.images.length > 0) {
+      variantImages = chosen.images;
+    }
   }
 
-  // Fallback: if template wasn't supplied, leave original name.
   if (!product.nameTemplate) displayName = product.name;
 
   const specs = (product.specs || []).map((s) =>
@@ -60,5 +67,7 @@ export function resolveProductVariant(product, selection) {
     price: Math.max(0, (s.price || 0) + totalDelta),
   }));
 
-  return { displayName, specs, stores, totalDelta };
+  const images = variantImages || product.images || [];
+
+  return { displayName, specs, stores, images, totalDelta };
 }

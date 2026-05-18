@@ -239,11 +239,66 @@ export const sampleProducts = [
         "label": "Color",
         "specLabel": "Color",
         "options": [
-          { "value": "Blue",   "shortValue": "Blue",   "priceDelta": 0, "isDefault": true },
-          { "value": "Pink",   "shortValue": "Pink",   "priceDelta": 0 },
-          { "value": "Yellow", "shortValue": "Yellow", "priceDelta": 0 },
-          { "value": "Black",  "shortValue": "Black",  "priceDelta": 0 },
-          { "value": "Green",  "shortValue": "Green",  "priceDelta": 0 }
+          {
+            "value": "Blue",
+            "shortValue": "Blue",
+            "priceDelta": 0,
+            "isDefault": true,
+            "swatch": "#A9C8E2",
+            "images": [
+              "https://cdn.dsmcdn.com/ty1609/prod/QC/20241202/09/d1662cea-116d-3e2c-9a7a-66c6204ea0a3/1_org_zoom.jpg",
+              "https://cdn.dsmcdn.com/ty1608/prod/QC/20241202/09/120468ea-6a40-36e9-b78c-92f61a70fc57/1_org_zoom.jpg",
+              "https://cdn.dsmcdn.com/ty1608/prod/QC/20241202/09/3c9eee16-6a90-375f-afaf-c6b4e6ca32a3/1_org_zoom.jpg"
+            ]
+          },
+          {
+            "value": "Pink",
+            "shortValue": "Pink",
+            "priceDelta": 0,
+            "swatch": "#FBD7D6",
+            "images": [
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-pink-pdp-image-position-6-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-pink-pdp-image-position-7-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-pink-pdp-image-position-8-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/141002-1_large.jpg"
+            ]
+          },
+          {
+            "value": "Yellow",
+            "shortValue": "Yellow",
+            "priceDelta": 0,
+            "swatch": "#FAE6B2",
+            "images": [
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-yellow-pdp-image-position-6-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-yellow-pdp-image-position-7-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-yellow-pdp-image-position-8-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/141003-1_large.jpg"
+            ]
+          },
+          {
+            "value": "Black",
+            "shortValue": "Black",
+            "priceDelta": 0,
+            "swatch": "#1f2933",
+            "images": [
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-black-pdp-image-position-6-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-black-pdp-image-position-7-tr_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-black-pdp-image-position-8-tr_large.jpg",
+              "https://cdn.dsmcdn.com/ty1609/prod/QC/20241202/09/d1662cea-116d-3e2c-9a7a-66c6204ea0a3/1_org_zoom.jpg"
+            ]
+          },
+          {
+            "value": "Green",
+            "shortValue": "Green",
+            "priceDelta": 0,
+            "swatch": "#B6CFB9",
+            "images": [
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-green-pdp-image-position-6-tr-1_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-green-pdp-image-position-7-tr-1_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/iphone-15-green-pdp-image-position-8-tr-1_large.jpg",
+              "https://cdn.vatanbilgisayar.com/Upload/PRODUCT/apple/thumb/141005-1_large.jpg"
+            ]
+          }
         ]
       }
     ],
@@ -327,6 +382,107 @@ export const sampleProducts = [
         "url": "https://www.vatanbilgisayar.com/samsung-galaxy-tab-s11-ultra-14-inc-android-tablet.html"
       }
     ]
+  },
+  {
+    "id": 6,
+    "name": "Samsung Galaxy Buds4 Pro Bluetooth Kulaklık Siyah (ANC)",
+    "brand": "Samsung",
+    "nameTemplate": "Samsung Galaxy Buds4 Pro Bluetooth Kulaklık {Color} (ANC)",
+    "images": [
+      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770120?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770123?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770128?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+      "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770130?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402"
+    ],
+    "description": "Aktif gürültü engelleme (ANC), 360° uzamsal ses ve gelişmiş Galaxy AI çeviri özellikleriyle Samsung'un yeni nesil amiral gemisi kablosuz kulak içi kulaklığı.",
+    "specs": [
+      { "label": "Drivers", "value": "11mm Dynamic Woofer + 6.5mm Planar Tweeter" },
+      { "label": "ANC", "value": "Adaptive Active Noise Cancellation + Ambient Sound" },
+      { "label": "Bluetooth", "value": "5.4 (LE Audio, Multipoint)" },
+      { "label": "Codecs", "value": "SSC UHQ (24-bit), LDAC, AAC, SBC" },
+      { "label": "Battery (Buds)", "value": "Up to 6 hours (ANC on), 8 hours (ANC off)" },
+      { "label": "Battery (Case)", "value": "Up to 30 hours total with charging case" },
+      { "label": "Charging", "value": "USB Type-C + Qi Kablosuz Şarj" },
+      { "label": "Microphones", "value": "3 mic + VPU (Voice Pickup Unit) per earbud" },
+      { "label": "Water/Dust Resistance", "value": "IP57" },
+      { "label": "Spatial Audio", "value": "360 Audio with head tracking (Dolby Atmos uyumlu)" },
+      { "label": "AI Features", "value": "Galaxy AI Live Translate, Interpreter Mode" },
+      { "label": "Color", "value": "Black" },
+      { "label": "Weight", "value": "5.3 g (each earbud), 47 g (case)" }
+    ],
+    "variants": [
+      {
+        "label": "Color",
+        "specLabel": "Color",
+        "options": [
+          {
+            "value": "Black",
+            "shortValue": "Black",
+            "priceDelta": 0,
+            "isDefault": true,
+            "swatch": "#111418",
+            "images": [
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770120?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770123?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770128?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770130?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402"
+            ]
+          },
+          {
+            "value": "White",
+            "shortValue": "White",
+            "priceDelta": 0,
+            "swatch": "#F3F4F6",
+            "images": [
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770042?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770062?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770077?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402",
+              "https://assets.mmsrg.com/isr/166325/c1/-/ASSET_MMS_171770094?x=536&y=402&format=jpg&quality=80&sp=yes&strip=yes&trim&ex=536&ey=402&align=center&resizesource&unsharp=1.5x1+0.7+0.02&cox=0&coy=0&cdx=536&cdy=402"
+            ]
+          }
+        ]
+      }
+    ],
+    "aiSummary": "Üst segment ANC kulaklıkları arasında fiyat/performans olarak öne çıkıyor; Türkiye fiyatlandırması stabil seyrediyor.",
+    "strategy": "BUY",
+    "stores": [
+      {
+        "name": "Hepsiburada",
+        "price": 10499,
+        "rating": 4.8,
+        "maxRating": 5,
+        "pros": ["Hızlı kargo", "Hepsipay taksit"],
+        "cons": ["Bazı satıcılarda kutu açılmış olabiliyor"],
+        "url": "https://www.hepsiburada.com/samsung-galaxy-buds4-pro-bluetooth-kulaklik-siyah-anc-p-HBCV0000CWH2BY"
+      },
+      {
+        "name": "Trendyol",
+        "price": 9999,
+        "rating": 4.7,
+        "maxRating": 5,
+        "pros": ["Kupon avantajı", "Express kargo"],
+        "cons": ["Satıcı performansı değişken"],
+        "url": "https://www.trendyol.com/sr?q=samsung%20galaxy%20buds%204%20pro&qt=samsung%20galaxy%20buds%204%20pro&st=samsung%20galaxy%20buds%204%20pro&os=1&sk=1"
+      },
+      {
+        "name": "Media Markt",
+        "price": 10899,
+        "rating": 4.7,
+        "maxRating": 5,
+        "pros": ["Mağaza teslim", "Resmi Samsung TR garantisi"],
+        "cons": ["İndirim sıklığı düşük"],
+        "url": "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-buds4-pro-bluetooth-kulak-ici-kulaklik-siyah-1252511.html"
+      },
+      {
+        "name": "Vatan Bilgisayar",
+        "price": 10799,
+        "rating": 4.6,
+        "maxRating": 5,
+        "pros": ["Mağaza teslim", "24 ay Samsung garantisi"],
+        "cons": ["Online stok dalgalanabiliyor"],
+        "url": "https://www.vatanbilgisayar.com/samsung-galaxy-buds4-pro-anc-kulak-ici-kablosuz-bluetooth-kulaklik-siyah.html"
+      }
+    ]
   }
 ];
 
@@ -347,7 +503,9 @@ export const brandModels = {
     'Samsung Galaxy S24 Ultra', 'Samsung Galaxy S24+', 'Samsung Galaxy S23 FE',
     'Samsung Galaxy Z Fold 5', 'Samsung Galaxy Z Flip 5',
     'Samsung Galaxy Tab S11 Ultra 12GB 256GB SM-X930',
-    'Samsung Galaxy Tab S9', 'Samsung Galaxy Buds2 Pro'
+    'Samsung Galaxy Tab S9',
+    'Samsung Galaxy Buds4 Pro Bluetooth Kulaklık Siyah (ANC)',
+    'Samsung Galaxy Buds2 Pro'
   ],
   Sony: [
     'Sony WH-1000XM5', 'Sony WH-1000XM4', 'Sony WF-1000XM5',

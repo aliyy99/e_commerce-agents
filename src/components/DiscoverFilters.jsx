@@ -48,7 +48,7 @@ const DiscoverFilters = ({ options, filters, onChange, onReset }) => {
       >
         <h3 className="font-display font-black text-slate-900 flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-primary" />
-          Filtreler
+          Filters
           {active > 0 && (
             <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-black rounded-full">
               {active}
@@ -73,7 +73,7 @@ const DiscoverFilters = ({ options, filters, onChange, onReset }) => {
               }}
               className="text-[11px] font-bold text-slate-400 hover:text-primary inline-flex items-center gap-1 transition-colors cursor-pointer"
             >
-              <RotateCcw className="w-3 h-3" /> Sıfırla
+              <RotateCcw className="w-3 h-3" /> Reset
             </span>
           )}
           <motion.span
@@ -99,7 +99,7 @@ const DiscoverFilters = ({ options, filters, onChange, onReset }) => {
             <div className="px-5 pb-5 pt-1 border-t border-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-x-6 gap-y-5 pt-4">
                 {options.brands.length > 0 && (
-                  <Section title="Marka">
+                  <Section title="Brand">
                     <div className="flex flex-wrap gap-1.5">
                       {options.brands.map((b) => (
                         <Chip key={b} active={(filters.brands || []).includes(b)} onClick={() => setArr('brands', b)}>
@@ -110,7 +110,7 @@ const DiscoverFilters = ({ options, filters, onChange, onReset }) => {
                   </Section>
                 )}
 
-                <Section title="Fiyat aralığı (₺)">
+                <Section title="Price range (₺)">
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -142,7 +142,7 @@ const DiscoverFilters = ({ options, filters, onChange, onReset }) => {
                   </div>
                   {options.priceMax > 0 && (
                     <div className="text-[10px] text-slate-400 mt-1.5">
-                      Katalog: {options.priceMin.toLocaleString('tr-TR')} – {options.priceMax.toLocaleString('tr-TR')} ₺
+                      Catalog: {options.priceMin.toLocaleString('en-US')} – {options.priceMax.toLocaleString('en-US')} ₺
                     </div>
                   )}
                 </Section>
@@ -160,7 +160,7 @@ const DiscoverFilters = ({ options, filters, onChange, onReset }) => {
                 )}
 
                 {options.storages.length > 0 && (
-                  <Section title="Depolama">
+                  <Section title="Storage">
                     <div className="flex flex-wrap gap-1.5">
                       {options.storages.map((s) => (
                         <Chip key={s} active={(filters.storages || []).includes(s)} onClick={() => setArr('storages', s)}>
@@ -172,7 +172,7 @@ const DiscoverFilters = ({ options, filters, onChange, onReset }) => {
                 )}
 
                 {options.strategies.length > 0 && (
-                  <Section title="Satın alma önerisi">
+                  <Section title="Buy recommendation">
                     <div className="flex flex-wrap gap-1.5">
                       {options.strategies.map((s) => (
                         <Chip key={s} active={(filters.strategies || []).includes(s)} onClick={() => setArr('strategies', s)}>

@@ -1,10 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import {
   Scale, Sparkles, Trophy, ArrowRight, RefreshCw, Zap, Layers,
   Cpu, Monitor, Camera, Battery, Smartphone, Wifi, Shield, Speaker,
-  Fingerprint, DollarSign, Search, X, Check, AlertCircle, Globe, ExternalLink,
+  Fingerprint, DollarSign, Search, X, Check, AlertCircle, History, Trash2,
 } from 'lucide-react';
 import { sampleProducts } from '../data/products';
 import { compareDevices } from '../services/api';
@@ -304,13 +304,38 @@ const ScoreBar = ({ label, score, color }) => (
   </div>
 );
 
-const DeviceCompare = ({ onComparisonReady }) => {
+const DeviceCompare = ({ history = {}, onComparisonReady, onDeleteHistory }) => {
   const [deviceA, setDeviceA] = useState(null);
   const [deviceB, setDeviceB] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [report, setReport] = useState(null);
   const [phase, setPhase] = useState('idle'); // idle | running | done
+
+  // Sorted history entries (most recent first) — rendered above the picker as
+  // a quick-restore strip so the user can revisit any comparison they've run.
+  const historyEntries = useMemo(() => {
+    return Object.entries(history)
+      .map(([key, value]) => ({ key, ...value }))
+      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  }, [history]);
+
+  const handleRestore = (entry) => {
+    setDeviceA(entry.deviceA);
+    setDeviceB(entry.deviceB);
+    setReport(entry.report);
+    setError(null);
+    setPhase('done');
+    onComparisonReady?.({
+      deviceA: entry.deviceA,
+      deviceB: entry.deviceB,
+      report: entry.report,
+    });
+    // Scroll the user toward the restored report.
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const ACCENT_A = '#0ea5e9';
   const ACCENT_B = '#f97316';
@@ -403,6 +428,101 @@ const DeviceCompare = ({ onComparisonReady }) => {
           </div>
         )}
       </div>
+
+      {/* Previous comparisons */}
+      {historyEntries.length > 0 && (
+        <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+              <History className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-primary">
+                Recents
+              </div>
+              <h3 className="font-display text-lg font-black text-slate-900">
+                Previous comparisons
+              </h3>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider bg-primary/10 text-primary">
+              {historyEntries.length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {historyEntries.map((entry) => {
+              const winner = entry.report?.overall_winner;
+              const winnerName = winner === 'A'
+                ? entry.deviceA.name
+                : winner === 'B'
+                  ? entry.deviceB.name
+                  : 'Tie';
+              return (
+                <div
+                  key={entry.key}
+                  className="group relative rounded-2xl border border-slate-100 bg-slate-50/40 hover:bg-white hover:border-primary/40 transition-colors p-4"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleRestore(entry)}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex -space-x-3">
+                        <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shadow-sm">
+                          <img
+                            src={(entry.deviceA.images && entry.deviceA.images[0]) || PRODUCT_IMAGE_FALLBACK}
+                            alt={entry.deviceA.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => { e.currentTarget.src = PRODUCT_IMAGE_FALLBACK; }}
+                          />
+                        </div>
+                        <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shadow-sm">
+                          <img
+                            src={(entry.deviceB.images && entry.deviceB.images[0]) || PRODUCT_IMAGE_FALLBACK}
+                            alt={entry.deviceB.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => { e.currentTarget.src = PRODUCT_IMAGE_FALLBACK; }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          {entry.deviceA.brand} vs {entry.deviceB.brand}
+                        </div>
+                        <div className="text-sm font-black text-slate-900 truncate mt-0.5">
+                          {entry.deviceA.name}
+                        </div>
+                        <div className="text-sm font-black text-slate-700 truncate">
+                          {entry.deviceB.name}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                        <Trophy className="w-3 h-3" />
+                        {winner === 'tie' || !winner ? 'Tie' : winnerName}
+                      </span>
+                      <span className="text-[11px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                        View →
+                      </span>
+                    </div>
+                  </button>
+                  {onDeleteHistory && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onDeleteHistory(entry.key); }}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                      title="Remove from history"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* VS picker */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-center">
@@ -734,41 +854,6 @@ const DeviceCompare = ({ onComparisonReady }) => {
                 </div>
               </div>
             </div>
-
-            {/* Grounding sources */}
-            {(report.grounding_sources || []).length > 0 && (
-              <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center">
-                    <Globe className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-sky-600">
-                      Google Search ile doğrulandı
-                    </div>
-                    <h4 className="font-display text-lg font-black text-slate-900">Kaynaklar</h4>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider bg-sky-50 text-sky-700">
-                    {report.grounding_sources.length}
-                  </span>
-                </div>
-                <ul className="space-y-1.5">
-                  {report.grounding_sources.map((src, i) => (
-                    <li key={i}>
-                      <a
-                        href={src.uri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 hover:text-primary transition-colors"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                        <span className="truncate">{src.title || src.uri}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
             {/* Long-form summary */}
             {report.summary && (

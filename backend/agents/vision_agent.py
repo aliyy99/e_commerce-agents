@@ -104,14 +104,16 @@ OUTPUT — return ONLY this JSON object, no markdown fences, no extra text:
   "category": "smartphone | laptop | tablet | headphones | console | smartwatch | tv | camera | accessory | other",
   "product_name": "Full canonical product name with variant (English)",
   "search_keywords": "3-6 word search query: brand + family + variant (English)",
+  "color": "Single English colour token of the product chassis as it appears in the image (e.g. 'Black', 'White', 'Blue', 'Pink', 'Yellow', 'Green', 'Silver', 'Gold', 'Titanium', 'Graphite', 'Purple', 'Red'). Use null only if the colour is genuinely ambiguous (severe lighting, monochrome render).",
   "specs": [{"key": "spec name", "value": "spec value"}],
   "confidence": 0.0,
   "reasoning": "One sentence citing the concrete visual evidence that decided the ID"
 }
 
 RULES — apply strictly:
-  • Do NOT invent specs you can't see (no color codes, no storage sizes
-    unless the label shows them).
+  • Do NOT invent specs you can't see (no internal codes, no storage sizes
+    unless the label shows them). ``color`` IS exempt — you always SEE the
+    physical colour of the product, so always fill it.
   • Do NOT guess a model when only the brand is visible — use the brand
     name as ``product_name`` and set confidence ≤0.50.
   • Do NOT return generic class names like "Smartphone" or "Laptop" as the
@@ -296,12 +298,16 @@ async def run_vision_agent(request: VisionRequest) -> VisionResponse:
         # product names. Treat as brand-only signal.
         product_name = None
 
+    color_raw = best.get("color")
+    color = str(color_raw).strip() if isinstance(color_raw, str) and color_raw.strip() else None
+
     return VisionResponse(
         status=status,
         product_name=product_name,
         search_keywords=best.get("search_keywords"),
         brand=best.get("brand"),
         category=best.get("category"),
+        color=color,
         specs=specs,
         confidence=best_conf if best_conf >= 0 else None,
         raw_text=best.get("reasoning"),

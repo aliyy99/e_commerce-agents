@@ -18,6 +18,69 @@ const STOPWORDS = new Set([
 // hand off to the disambiguation modal so the user picks the actual model.
 export const VISION_AUTO_MATCH_MIN_CONFIDENCE = 0.55;
 
+// Colour vocabulary: maps every form the model (or the user's locale) could
+// emit to a canonical English token used by our variant `shortValue`s.
+// Includes Turkish synonyms so a TR-locale vision response still resolves.
+const COLOR_SYNONYMS = {
+  black:    ['black', 'siyah', 'graphite', 'grafit', 'space black', 'jet black', 'midnight', 'gece yarisi'],
+  white:    ['white', 'beyaz', 'silver', 'gumus', 'starlight', 'yildiz isigi'],
+  blue:     ['blue', 'mavi', 'navy', 'lacivert', 'sierra blue', 'pacific blue', 'titanium blue'],
+  pink:     ['pink', 'pembe', 'rose', 'rose gold', 'gul', 'gül'],
+  yellow:   ['yellow', 'sari', 'sarı', 'gold', 'altin', 'altın'],
+  green:    ['green', 'yesil', 'yeşil', 'alpine green', 'mint'],
+  red:      ['red', 'kirmizi', 'kırmızı', '(product)red', 'productred'],
+  purple:   ['purple', 'mor', 'lila', 'deep purple'],
+  orange:   ['orange', 'turuncu'],
+  titanium: ['titanium', 'titanyum', 'natural titanium'],
+};
+
+function normalizeColorToken(value) {
+  if (!value) return null;
+  const lower = String(value).toLowerCase().trim();
+  if (!lower) return null;
+  for (const [canonical, synonyms] of Object.entries(COLOR_SYNONYMS)) {
+    if (synonyms.some((s) => lower === s || lower.includes(s))) return canonical;
+  }
+  return lower; // fall back to the raw token — option matching does a contains check below.
+}
+
+/**
+ * Given a catalog product and a Vision response, pick the option shortValue
+ * for each variant group that best matches the detected attributes. Today
+ * this resolves the Color group via the vision agent's `color` field; in the
+ * future we can extend it to RAM/Storage if the model reliably reads labels.
+ *
+ * Returns an object like { Color: 'White' } that can be fed directly into
+ * ProductAnalysis's variantSelection state. Returns `null` if there are no
+ * variants we can confidently override.
+ */
+export function pickInitialVariantSelection(product, vision) {
+  if (!product?.variants?.length || !vision) return null;
+  const target = normalizeColorToken(vision.color);
+  if (!target) return null;
+
+  const selection = {};
+  for (const group of product.variants) {
+    if ((group.label || '').toLowerCase() !== 'color') continue;
+    let bestOption = null;
+    for (const opt of group.options) {
+      const optCanonical = normalizeColorToken(opt.shortValue) || normalizeColorToken(opt.value);
+      if (!optCanonical) continue;
+      // Direct canonical hit wins immediately.
+      if (optCanonical === target) {
+        bestOption = opt;
+        break;
+      }
+      // Fuzzy contains both ways: covers "Sierra Blue" → "blue" etc.
+      if (!bestOption && (optCanonical.includes(target) || target.includes(optCanonical))) {
+        bestOption = opt;
+      }
+    }
+    if (bestOption) selection[group.label] = bestOption.shortValue;
+  }
+  return Object.keys(selection).length ? selection : null;
+}
+
 function tokens(str) {
   return (str || '')
     .toLowerCase()

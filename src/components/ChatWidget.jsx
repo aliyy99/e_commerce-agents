@@ -277,7 +277,7 @@ const ChatWidget = ({ contextProduct, priceHistoryReport = null, analystReport =
               {campaignsContext && ((campaignsContext.coupons?.length || 0) + (campaignsContext.news?.length || 0)) > 0 && (
                 <div className="mb-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-2">
                   <span className="text-[10px] text-emerald-700 font-bold truncate">
-                    🎟️ {campaignsContext.coupons?.length || 0} kupon · 📰 {campaignsContext.news?.length || 0} haber yüklü
+                    🎟️ {campaignsContext.coupons?.length || 0} coupons · 📰 {campaignsContext.news?.length || 0} news loaded
                   </span>
                 </div>
               )}

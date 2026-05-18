@@ -33,6 +33,10 @@ class VisionResponse(BaseModel):
     search_keywords: Optional[str] = Field(None, description="Keywords for Detective Agent.")
     brand:        Optional[str]   = None
     category:     Optional[str]   = None
+    color:        Optional[str]   = Field(
+        None,
+        description="Primary colour of the product (English token, e.g. 'Black', 'White', 'Blue'). Used to auto-select the matching colour variant in the catalog.",
+    )
     specs:        List[DetectedSpec] = Field(default_factory=list)
     confidence:   Optional[float] = Field(None, ge=0.0, le=1.0)
     raw_text:     Optional[str]   = None   # Full model output for debugging

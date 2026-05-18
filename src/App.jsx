@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
+import Landing from './components/Landing';
 import ProductAnalysis from './components/ProductAnalysis';
 import Profile from './components/Profile';
 import PipelineLoader from './components/PipelineLoader';
@@ -18,7 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'react-hot-toast';
 import { sampleProducts, brandModels } from './data/products';
 import { analyzeImage } from './services/api';
-import { matchProductFromVision, brandKeyFromVision } from './utils/productMatch';
+import { matchProductFromVision, brandKeyFromVision, pickInitialVariantSelection } from './utils/productMatch';
 import { filterProducts, findBestProductMatch, buildSuggestions } from './utils/searchMatch';
 import {
   applyDiscoverFilters,
@@ -27,6 +28,9 @@ import {
 } from './utils/productFilters';
 
 function App() {
+  // Show the marketing/login landing on every fresh load. The user lands
+  // here, clicks Log In (or Continue as Guest), and only then sees the dashboard.
+  const [hasEnteredApp, setHasEnteredApp] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
@@ -67,10 +71,38 @@ function App() {
   // Vision (image-search) State
   const [visionDisambiguation, setVisionDisambiguation] = useState(null); // { brand, suggestedModels, detected }
   const [visionError, setVisionError] = useState(null);
+  // When vision matches a product AND detects a colour, we pre-set the
+  // variant selection so opening the detail page lands on the exact colour
+  // the user uploaded (instead of the catalog default).
+  const [visionVariantOverride, setVisionVariantOverride] = useState(null);
 
   // Latest device comparison — kept around so the ChatWidget can answer
   // follow-up questions about it ("which is better for gaming?", etc.).
   const [latestComparison, setLatestComparison] = useState(null);
+
+  // History of every comparison the user has run, keyed by the unordered
+  // device-pair so re-running A↔B doesn't create a duplicate entry. Lives at
+  // the App level (not inside DeviceCompare) so the results survive page
+  // changes and unmounts — same pattern as `priceHistoryReports`.
+  const [comparisonHistory, setComparisonHistory] = useState({});
+  const recordComparison = useCallback((payload) => {
+    if (!payload?.deviceA?.id || !payload?.deviceB?.id || !payload.report) return;
+    const [low, high] = [payload.deviceA.id, payload.deviceB.id].sort((a, b) => a - b);
+    const key = `${low}__${high}`;
+    setComparisonHistory((prev) => ({
+      ...prev,
+      [key]: { ...payload, savedAt: Date.now() },
+    }));
+    setLatestComparison(payload);
+  }, []);
+  const removeComparison = useCallback((key) => {
+    setComparisonHistory((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
 
   // Latest campaigns snapshot (coupons + tech news) — kept here so the chat
   // assistant can answer questions like "hangi kuponları kullanabilirim?" or
@@ -149,7 +181,7 @@ function App() {
         // Hard fail: model couldn't see a product at all. No point searching.
         if (confidence < 0.3 && !result.product_name && !result.brand) {
           setVisionError(
-            'Görüntüden ürünü tanıyamadık. Daha net bir fotoğraf çekin veya ürün adını yazın.',
+            "We couldn't identify the product from the image. Try a clearer photo or type the product name.",
           );
           setIsRunning(false);
           return;
@@ -159,6 +191,12 @@ function App() {
         // already enforces brand parity + token-overlap + min confidence.)
         const matched = matchProductFromVision(result, sampleProducts);
         if (matched) {
+          const colorSelection = pickInitialVariantSelection(matched, result);
+          // Bind the override to the matched product's id so navigating to a
+          // different product later doesn't accidentally re-apply this colour.
+          setVisionVariantOverride(
+            colorSelection ? { productId: matched.id, selection: colorSelection } : null,
+          );
           setSelectedProduct(matched);
           setSearchQuery(matched.name);
           setIsRunning(false);
@@ -184,7 +222,7 @@ function App() {
           finalizeQuery(fallbackQuery, { autoSelect: false });
         } else {
           setVisionError(
-            "Görüntüden ürünü tanıyamadık. Farklı bir fotoğraf deneyin veya ürün adını yazın.",
+            "We couldn't identify the product from the image. Try a different photo or type the product name.",
           );
         }
       } catch (err) {
@@ -316,6 +354,8 @@ function App() {
     'Samsung Galaxy Z Fold 5',
     'Samsung Galaxy Z Flip 5',
     'Samsung Galaxy Tab S9',
+    'Samsung Galaxy Buds4 Pro',
+    'Samsung Galaxy Buds3 Pro',
     'Samsung Galaxy Buds2 Pro',
     // Apple / MacBook family
     'MacBook Pro 14" M3',
@@ -372,6 +412,10 @@ function App() {
       : sampleProducts;
     return applyDiscoverFilters(base, discoverFilters);
   }, [isSearching, committedQuery, discoverFilters]);
+
+  if (!hasEnteredApp) {
+    return <Landing onEnter={() => setHasEnteredApp(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-slate-900 font-sans selection:bg-primary/20">
@@ -513,10 +557,6 @@ function App() {
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 className="flex items-center gap-3 pl-2 pr-1 py-1 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 group"
               >
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-black leading-none text-slate-900">Alex Rivera</p>
-                  <p className="text-[10px] text-primary font-bold mt-1">Pro Analyst</p>
-                </div>
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 overflow-hidden relative">
                   <User className="w-6 h-6" />
                 </div>
@@ -569,20 +609,20 @@ function App() {
                 exit={{ opacity: 0, x: 20 }}
                 className="space-y-8"
               >
-                {/* Keşfet hero */}
+                {/* Discover hero */}
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
                     <Compass className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-3xl font-display font-black text-slate-900">Keşfet</h2>
+                    <h2 className="text-3xl font-display font-black text-slate-900">Discover</h2>
                     <p className="text-slate-500 text-sm mt-1">
-                      Kategorilere göz at veya soldaki filtrelerle aradığın niş cihazı bul.
+                      Browse categories, or use the filters on the left to pinpoint the niche device you're after.
                     </p>
                   </div>
                   <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    {displayedProducts.length} ürün
+                    {displayedProducts.length} products
                   </span>
                 </div>
 
@@ -598,7 +638,7 @@ function App() {
                 <div className="space-y-6">
                   {isSearching && (
                     <h3 className="text-lg font-black text-slate-900">
-                      "{committedQuery}" için sonuçlar ({displayedProducts.length})
+                      Results for "{committedQuery}" ({displayedProducts.length})
                     </h3>
                   )}
 
@@ -629,17 +669,17 @@ function App() {
                         <Compass className="w-7 h-7" />
                       </div>
                       <h4 className="text-base font-black text-slate-900 mb-1">
-                        Filtrelerinize uyan ürün bulunamadı
+                        No products match your filters
                       </h4>
                       <p className="text-sm text-slate-500 mb-5">
-                        Bazı filtreleri kaldırarak daha geniş sonuçlara ulaşabilirsiniz.
+                        Try removing some filters to broaden the results.
                       </p>
                       <button
                         type="button"
                         onClick={resetDiscoverFilters}
                         className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors"
                       >
-                        Filtreleri sıfırla
+                        Reset filters
                       </button>
                     </div>
                   )}
@@ -665,6 +705,11 @@ function App() {
                 <ProductAnalysis
                   loading={false}
                   product={selectedProduct}
+                  initialVariantSelection={
+                    visionVariantOverride?.productId === selectedProduct.id
+                      ? visionVariantOverride.selection
+                      : null
+                  }
                   onFavorite={() => toggleFavorite(selectedProduct)}
                   onTrack={() => toggleTracked(selectedProduct)}
                   isFavorite={favorites.some(f => f.id === selectedProduct.id)}
@@ -833,7 +878,11 @@ function App() {
 
             {currentPage === 'compare' && (
               <motion.div key="compare" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                <DeviceCompare onComparisonReady={setLatestComparison} />
+                <DeviceCompare
+                  history={comparisonHistory}
+                  onComparisonReady={recordComparison}
+                  onDeleteHistory={removeComparison}
+                />
               </motion.div>
             )}
           </AnimatePresence>

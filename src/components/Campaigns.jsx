@@ -29,16 +29,16 @@ const STORE_LOOKUP = ECOMMERCE_ACCOUNTS.reduce((acc, s) => {
 // News category → icon + accent colour. Falls back to a neutral "industry"
 // look so unknown categories still render cleanly.
 const NEWS_CATEGORY_META = {
-  'price-drop':  { label: 'Fiyat Düşüşü', icon: TrendingDown, badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'bg-emerald-500' },
-  'new-product': { label: 'Yeni Ürün',    icon: Rocket,       badge: 'bg-violet-50 text-violet-700 border-violet-200',    accent: 'bg-violet-500' },
-  'launch':      { label: 'Lansman',      icon: Megaphone,    badge: 'bg-blue-50 text-blue-700 border-blue-200',          accent: 'bg-blue-500' },
-  'deal':        { label: 'Kampanya',     icon: Flame,        badge: 'bg-orange-50 text-orange-700 border-orange-200',    accent: 'bg-orange-500' },
-  'industry':    { label: 'Sektör',       icon: Globe,        badge: 'bg-slate-50 text-slate-600 border-slate-200',       accent: 'bg-slate-500' },
+  'price-drop':  { label: 'Price Drop',  icon: TrendingDown, badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'bg-emerald-500' },
+  'new-product': { label: 'New Product', icon: Rocket,       badge: 'bg-violet-50 text-violet-700 border-violet-200',    accent: 'bg-violet-500' },
+  'launch':      { label: 'Launch',      icon: Megaphone,    badge: 'bg-blue-50 text-blue-700 border-blue-200',          accent: 'bg-blue-500' },
+  'deal':        { label: 'Deal',        icon: Flame,        badge: 'bg-orange-50 text-orange-700 border-orange-200',    accent: 'bg-orange-500' },
+  'industry':    { label: 'Industry',    icon: Globe,        badge: 'bg-slate-50 text-slate-600 border-slate-200',       accent: 'bg-slate-500' },
 };
 
 const TABS = [
-  { id: 'coupons', label: 'Kuponlar', icon: Ticket },
-  { id: 'news',    label: 'Haberler', icon: Newspaper },
+  { id: 'coupons', label: 'Coupons', icon: Ticket },
+  { id: 'news',    label: 'News',    icon: Newspaper },
 ];
 
 const StoreBadge = ({ storeId, fallbackName }) => {
@@ -105,7 +105,7 @@ const CouponCard = ({ coupon, copiedId, onCopy }) => {
             onClick={() => onCopy(coupon)}
             className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-600 hover:text-primary hover:border-primary/40 transition-colors"
           >
-            {copied ? <><Check className="w-3.5 h-3.5 text-emerald-500" /> Kopyalandı</> : <><Copy className="w-3.5 h-3.5" /> Kopyala</>}
+            {copied ? <><Check className="w-3.5 h-3.5 text-emerald-500" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
           </button>
         </div>
       ) : coupon.url ? (
@@ -115,11 +115,11 @@ const CouponCard = ({ coupon, copiedId, onCopy }) => {
           rel="noreferrer"
           className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors"
         >
-          Kampanyaya Git <ExternalLink className="w-3.5 h-3.5" />
+          Go to deal <ExternalLink className="w-3.5 h-3.5" />
         </a>
       ) : (
         <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500 text-center">
-          Kupon kodu yok — kampanya otomatik uygulanır.
+          No coupon code — discount is applied automatically.
         </div>
       )}
     </motion.article>
@@ -156,7 +156,7 @@ const NewsCard = ({ item }) => {
       </p>
       <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
         <span className="text-[11px] text-slate-400 truncate">
-          {item.source ? `Kaynak: ${item.source}` : 'Web kaynaklı'}
+          {item.source ? `Source: ${item.source}` : 'From the web'}
         </span>
         {item.url && (
           <a
@@ -165,7 +165,7 @@ const NewsCard = ({ item }) => {
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline whitespace-nowrap"
           >
-            Habere Git <ExternalLink className="w-3 h-3" />
+            Read more <ExternalLink className="w-3 h-3" />
           </a>
         )}
       </div>
@@ -229,7 +229,7 @@ const Campaigns = ({ onDataLoaded }) => {
       });
     } catch (err) {
       console.error('Campaigns fetch failed:', err);
-      setError(err?.message || 'Kampanyalar yüklenemedi.');
+      setError(err?.message || 'Could not load campaigns.');
     } finally {
       setLoading(false);
     }
@@ -257,9 +257,9 @@ const Campaigns = ({ onDataLoaded }) => {
             <Tag className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-3xl font-display font-black text-slate-900">Kampanyalar</h2>
+            <h2 className="text-3xl font-display font-black text-slate-900">Campaigns</h2>
             <p className="text-slate-500 mt-1 text-sm">
-              Bağlı hesaplarına özel kuponlar ve teknoloji dünyasından son haberler.
+              Coupons tailored to your connected accounts, plus the latest tech-world news.
             </p>
           </div>
         </div>
@@ -268,7 +268,7 @@ const Campaigns = ({ onDataLoaded }) => {
           {generatedAt && (
             <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-primary" />
-              {grounded ? 'Web kaynaklı' : 'AI özetli'} · {generatedAt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+              {grounded ? 'From the web' : 'AI summary'} · {generatedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           <button
@@ -278,7 +278,7 @@ const Campaigns = ({ onDataLoaded }) => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Yenile
+            Refresh
           </button>
         </div>
       </div>
@@ -286,7 +286,7 @@ const Campaigns = ({ onDataLoaded }) => {
       {/* Connected accounts strip */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
-          Bağlı hesaplar:
+          Connected accounts:
         </span>
         {connected.length > 0 ? (
           connected.map((acc) => (
@@ -302,7 +302,7 @@ const Campaigns = ({ onDataLoaded }) => {
           ))
         ) : (
           <span className="text-[11px] text-slate-400">
-            Profil sayfasından e-ticaret hesaplarını bağlayarak sana özel kuponlar göster.
+            Connect your e-commerce accounts from the Profile page to see personalised coupons.
           </span>
         )}
       </div>
@@ -336,7 +336,7 @@ const Campaigns = ({ onDataLoaded }) => {
         <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
           <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-bold text-rose-700">Kampanyalar yüklenemedi</p>
+            <p className="text-sm font-bold text-rose-700">Could not load campaigns</p>
             <p className="text-xs text-rose-600 mt-0.5">{error}</p>
           </div>
           <button
@@ -344,7 +344,7 @@ const Campaigns = ({ onDataLoaded }) => {
             onClick={loadCampaigns}
             className="text-xs font-bold text-rose-700 hover:underline whitespace-nowrap"
           >
-            Tekrar dene
+            Try again
           </button>
         </div>
       )}
@@ -375,8 +375,8 @@ const Campaigns = ({ onDataLoaded }) => {
             ) : (
               <EmptyState
                 icon={Ticket}
-                title="Şu anda aktif kupon bulunamadı"
-                hint="Bağlı hesaplarında aktif bir kampanya yok. Birkaç dakika sonra yeniden dene veya yeni bir hesap bağla."
+                title="No active coupons right now"
+                hint="No active campaigns for your connected accounts. Check back in a few minutes or connect another store."
               />
             )
           ) : news.length > 0 ? (
@@ -388,8 +388,8 @@ const Campaigns = ({ onDataLoaded }) => {
           ) : (
             <EmptyState
               icon={Newspaper}
-              title="Henüz haber yok"
-              hint="Web kaynaklarından güncel teknoloji haberi çekilemedi. Lütfen biraz sonra tekrar dene."
+              title="No news yet"
+              hint="Couldn't pull fresh tech headlines from the web. Please try again in a moment."
             />
           )}
         </motion.div>
