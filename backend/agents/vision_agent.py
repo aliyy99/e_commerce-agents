@@ -1,16 +1,18 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║                      VISION AGENT  –  Pro → Flash Cascade            ║
+║                  VISION AGENT  –  Flash-Lite → Pro Cascade           ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║  Identifies the EXACT product in an image with calibrated confidence.║
-║  Cascades through the best multimodal models available — Pro variants║
-║  first, then Flash — and returns the first response that meets the   ║
-║  confidence threshold (or the highest-confidence response if none do).║
+║  Cascades from quota-friendly Flash-Lite up through non-lite Flash   ║
+║  and Pro variants. Early-exits as soon as a tier returns confidence  ║
+║  ≥ _TRUST_CONFIDENCE (0.55), so the bigger / quota-walled models     ║
+║  are only invoked when the lite tier hesitates.                      ║
 ║                                                                      ║
-║  Why a cascade?                                                      ║
-║   • gemini-3-pro-preview is the strongest at brand/variant ID but is ║
-║     quota-walled on free-tier keys (returns 429).                    ║
-║   • gemini-2.5-pro and Flash variants pick up when Pro is blocked.   ║
+║  Why Flash-Lite first?                                               ║
+║   • Project-wide low-quota policy: lite tiers have the broadest      ║
+║     free-tier RPM and seldom return 429.                             ║
+║   • Flash-Lite is fully multimodal and handles clear product shots   ║
+║     well; ambiguous cases roll forward to higher-capability rungs.   ║
 ║   • A stronger structured prompt + higher confidence floor (0.55)    ║
 ║     keeps the agent from confidently returning the wrong model.      ║
 ╚══════════════════════════════════════════════════════════════════════╝
@@ -39,18 +41,20 @@ logger = logging.getLogger("technotrack.vision_agent")
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Model cascade — highest-capability first. Mirrors the campaigns route
-# so a single Gemini key with Pro quota benefits both surfaces.
+# Model cascade — highest non-Pro Flash first for best identification
+# quality, then non-lite 2.5 Flash on an independent quota counter, then
+# the lite tiers as a quota-survival safety net, and finally Pro variants
+# as a paid-plan last resort. Early-exit on >= _TRUST_CONFIDENCE means the
+# deeper rungs only get called when the Flash answer is below the trust
+# floor or the higher rungs have exhausted their quota.
 # ─────────────────────────────────────────────────────────────────────
 _VISION_MODEL_CASCADE: list[str] = [
-    "gemini-3-pro-preview",
-    "gemini-2.5-pro",
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
-    # Flash-Lite is multimodal and has the most generous free-tier RPM, so it
-    # rescues rapid-fire requests where every higher-capability model has
-    # already hit its per-minute window.
+    "gemini-3-flash-lite-preview",
     "gemini-2.5-flash-lite",
+    "gemini-3-pro-preview",
+    "gemini-2.5-pro",
 ]
 
 # Minimum confidence we'll trust for a direct catalog match. Below this we

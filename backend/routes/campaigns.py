@@ -531,23 +531,27 @@ def _parse_news(raw) -> List[NewsItem]:
 
 
 # ── Model cascade ─────────────────────────────────────────────────────────
-# "Use the highest-capability model that actually responds." The free-tier
-# Gemini key on this project typically has zero quota for Pro variants, so the
-# call_gemini cascade will fall through to Flash; on a paid plan the Pro
-# attempts will succeed and we'll keep the higher-quality output.
+# Highest non-Pro Flash first for the best news-grounding quality, then
+# non-lite 2.5 Flash on an independent quota counter, then the lite tiers
+# as quota-survival rungs. The ``google_search`` tool occasionally
+# misfires on flash-lite (accepts the tool but emits the raw invocation
+# as text instead of executing it) — when that happens the cascade rolls
+# forward to the next rung.
 #
 # Notes on ordering:
-#   - ``gemini-3-pro`` (plain) is not exposed on v1beta and returns 404, so we
-#     skip it and start from the publicly available 3-pro-preview.
-#   - ``gemini-2.5-flash-lite`` is intentionally LAST because in practice it
-#     accepts the ``google_search`` tool but seldom actually invokes it,
-#     producing un-grounded answers. Models above it are preferred.
+#   - ``gemini-3-pro`` (plain) is not exposed on v1beta and returns 404, so
+#     we skip it and start from publicly available previews if we ever need
+#     them as a last-resort.
+#   - Pro variants live at the back because they typically have zero free-
+#     tier quota on this key; the cascade only reaches them when every
+#     Flash rung has hit a quota / parse wall.
 _NEWS_MODEL_CASCADE: list[str] = [
-    "gemini-3-pro-preview",
-    "gemini-2.5-pro",
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
+    "gemini-3-flash-lite-preview",
     "gemini-2.5-flash-lite",
+    "gemini-3-pro-preview",
+    "gemini-2.5-pro",
 ]
 
 

@@ -10,18 +10,18 @@
 ║  ▸ Structured output mode for reliable JSON extraction       ║
 ║  NOTE: Pro-family models are paid-tier only on this key      ║
 ║  (limit=0 on free tier), so the default routes to Flash.     ║
+║                                                              ║
+║  This module delegates the actual model call + JSON parse to ║
+║  ``services.gemini_grounded.call_gemini`` so the analyst     ║
+║  shares the same async transport, repair stack and cascade   ║
+║  logic as the Compare and Price-History agents — one place   ║
+║  to fix when Gemini changes its output shape.                ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 from __future__ import annotations
 
-import json
 import logging
-import re
-import statistics
 from typing import List
-
-import google.generativeai as genai
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..config import settings
 from ..models.requests import AnalystRequest, PricePoint
@@ -29,13 +29,8 @@ from ..models.responses import (
     AnalystResponse, AgentStatus,
     BuyStrategy, ReviewInsight, PriceTrend,
 )
-from ..services.gemini_client import (
-    is_rate_limit_error,
-    GeminiAuthError,
-    configure_gemini_client,
-    raise_if_auth_error,
-    retry_on_non_auth_error,
-)
+from ..services.gemini_client import GeminiAuthError
+from ..services.gemini_grounded import call_gemini
 
 logger = logging.getLogger("technotrack.analyst_agent")
 
@@ -121,19 +116,12 @@ def _compute_price_trend(price_history: List[PricePoint]) -> PriceTrend:
 # ─────────────────────────────────────────────────────────────
 # Model call
 # ─────────────────────────────────────────────────────────────
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    reraise=True,
-    retry=retry_on_non_auth_error,
-)
 async def _call_pro_analyst(
     product_name: str,
     reviews: List[str],
     price_history: List[PricePoint],
     locale: str,
-    model_name: str | None = None,
-) -> dict:
+) -> tuple[dict, str]:
     """
     AGENT: Analyst Agent
     Sends all reviews + price history to Gemini (model from ``settings.PRO_MODEL``)
@@ -142,6 +130,19 @@ async def _call_pro_analyst(
     detection and buy/wait reasoning. The "PRO_MODEL" setting name is kept for
     backwards-compat — its value points to a free-tier Flash model.
 
+    Implementation note
+    ───────────────────
+    We route through ``services.gemini_grounded.call_gemini`` rather than the
+    sync google-generativeai SDK because:
+
+    * the SDK is synchronous and would block the FastAPI event loop for the
+      full duration of a multi-second Gemini call (everyone else freezes);
+    * the shared helper already implements quota cascade, 503 same-model
+      retry, auth-error short-circuit and — crucially — the JSON repair
+      stack that recovers from unescaped embedded quotes, invalid
+      ``\\<letter>`` escapes, bare control bytes and trailing commas. The
+      analyst's previous ad-hoc parser handled none of these.
+
     Args:
         product_name:  Display name for the product.
         reviews:       List of raw scraped review strings.
@@ -149,21 +150,18 @@ async def _call_pro_analyst(
         locale:        ISO-639 language code for the response.
 
     Returns:
-        Parsed JSON dict with all analyst insights.
+        ``(parsed_json, model_used)`` — the analyst insights dict and the
+        model name that actually produced it (useful for response metadata).
     """
-    # Build compacted blocks to stay within token budget
+    # Compact the inputs to fit comfortably inside the model's context window
+    # even on free-tier Flash. The 500-review cap and 400-char-per-review
+    # ceiling together keep us under ~200K tokens with plenty of headroom
+    # for the system prompt and response.
     reviews_block = "\n".join(
-        f"[{i+1}] {r[:400]}" for i, r in enumerate(reviews[:500])  # cap at 500 reviews
+        f"[{i+1}] {r[:400]}" for i, r in enumerate(reviews[:500])
     )
     price_block = "\n".join(
         f"{p.date} | {p.store} | ${p.price:.2f}" for p in price_history
-    )
-
-    configure_gemini_client()
-    resolved_model = model_name or settings.PRO_MODEL
-    pro = genai.GenerativeModel(
-        model_name=resolved_model,
-        system_instruction=_ANALYST_SYSTEM.format(locale=locale),
     )
     prompt = _ANALYST_PROMPT.format(
         product_name=product_name,
@@ -171,37 +169,49 @@ async def _call_pro_analyst(
         reviews_block=reviews_block,
         price_history_block=price_block,
     )
-    try:
-        response = pro.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                temperature=0.2,        # Low temp for deterministic analysis
-                max_output_tokens=2048, # Enough for detailed JSON output
-                # Strict JSON mode — Flash sometimes emits trailing commas or
-                # unescaped newlines that break a plain ``json.loads``.
-                response_mime_type="application/json",
-            ),
-        )
-    except Exception as err:
-        raise_if_auth_error(err)
-        raise
-    raw_text = (getattr(response, "text", "") or "").strip()
-    if not raw_text:
-        raise ValueError("Analyst model returned empty text.")
-    # strict=False allows raw newlines/tabs inside JSON string values, which
-    # Gemini occasionally produces even in JSON-mime mode.
-    try:
-        return json.loads(raw_text, strict=False)
-    except json.JSONDecodeError:
-        pass
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL | re.IGNORECASE)
-    if fenced:
-        return json.loads(fenced.group(1), strict=False)
-    first = raw_text.find("{")
-    last = raw_text.rfind("}")
-    if first != -1 and last != -1 and last > first:
-        return json.loads(raw_text[first : last + 1], strict=False)
-    return json.loads(raw_text, strict=False)
+
+    # Cascade primary → fallback → wide net of alternates. call_gemini
+    # already handles 503 retries, 429 fall-throughs, JSON repair and auth
+    # short-circuit — but a two-rung cascade collapses immediately when the
+    # primary's per-minute quota is exhausted AND the fallback is briefly
+    # overloaded (a frequent free-tier state). Broadening the list with
+    # ``extra_models`` lets us fall through to non-lite Flash members and
+    # the paid-tier Pro variants if any are reachable.
+    #
+    # Cascade ORDER (highest-first, dedup happens inside call_gemini so
+    # operator overrides are safe):
+    #   PRO_MODEL                    — operator-chosen primary (default 3-flash-preview)
+    #   PRO_FALLBACK_MODEL           — operator-chosen fallback (default 2.5-flash)
+    #   gemini-3-flash-lite-preview  — quota-survival rung if both Flash tiers exhaust
+    #   gemini-2.5-flash-lite        — last quota-survival Flash before Pro variants
+    #   gemini-3-pro-preview         — paid-tier deep reasoner; free-tier skips fast
+    #   gemini-2.5-pro               — same paid-tier role for the older family
+    # Reasoning over supplied data (``use_search=False``) means Flash has
+    # no grounding-tool quirks here, so the highest non-Pro Flash stays primary.
+    extras = [
+        "gemini-3-flash-lite-preview",
+        "gemini-2.5-flash-lite",
+        "gemini-3-pro-preview",
+        "gemini-2.5-pro",
+    ]
+    result = await call_gemini(
+        primary_model=settings.PRO_MODEL,
+        fallback_model=settings.PRO_FALLBACK_MODEL,
+        extra_models=extras,
+        system=_ANALYST_SYSTEM.format(locale=locale),
+        user_prompt=prompt,
+        use_search=False,            # analyst reasons over supplied data only
+        response_json=True,
+        max_output_tokens=2048,
+        temperature=0.2,
+        top_p=0.95,
+        timeout_seconds=90.0,
+    )
+    if result.parsed is None:
+        # Defensive — call_gemini raises on parse failure, so this branch
+        # only fires if ``response_json`` was somehow flipped to False.
+        raise RuntimeError("Analyst model returned a non-JSON payload.")
+    return result.parsed, result.model_used
 
 
 # ─────────────────────────────────────────────────────────────
@@ -239,41 +249,22 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
     # Pre-compute price trend (synchronous, cheap)
     price_trend = _compute_price_trend(request.price_history)
 
-    # Cascade: primary model first, then fallback (different model family so
-    # daily-quota counters are independent). At most 2 successful API calls.
-    candidate_models = list(dict.fromkeys([
-        settings.PRO_MODEL,
-        settings.PRO_FALLBACK_MODEL,
-    ]))
-    data: dict | None = None
-    used_model: str | None = None
-    last_err: Exception | None = None
-    for model_name in candidate_models:
-        try:
-            data = await _call_pro_analyst(
-                product_name=request.product_name,
-                reviews=request.reviews,
-                price_history=request.price_history,
-                locale=request.locale,
-                model_name=model_name,
-            )
-            used_model = model_name
-            break
-        except Exception as err:
-            last_err = err
-            # Auth errors are terminal — no point trying the fallback model.
-            try:
-                raise_if_auth_error(err)
-            except GeminiAuthError:
-                raise
-            if is_rate_limit_error(err):
-                logger.warning("AnalystAgent: %s rate-limited, trying fallback.", model_name)
-                continue
-            logger.warning("AnalystAgent: %s failed (%s), trying fallback.", model_name, err)
-            continue
-
-    if data is None:
-        logger.error("AnalystAgent failed on all candidates: %s", last_err)
+    # Single entrypoint — the cascade, retries, JSON repair and auth handling
+    # all live inside ``call_gemini``. Auth errors bubble up as
+    # GeminiAuthError so the route layer can return a meaningful status code;
+    # everything else collapses to a graceful AnalystResponse(status=ERROR)
+    # with the underlying message in ``error_detail``.
+    try:
+        data, used_model = await _call_pro_analyst(
+            product_name=request.product_name,
+            reviews=request.reviews,
+            price_history=request.price_history,
+            locale=request.locale,
+        )
+    except GeminiAuthError:
+        raise
+    except Exception as err:
+        logger.error("AnalystAgent failed: %s", err)
         return AnalystResponse(
             status=AgentStatus.ERROR,
             product_id=request.product_id,
@@ -288,7 +279,7 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
             price_trend=price_trend,
             ai_summary="An error occurred during analysis.",
             final_recommendation="Analysis could not be performed.",
-            error_detail=str(last_err),
+            error_detail=str(err),
         )
 
     if emit_status:

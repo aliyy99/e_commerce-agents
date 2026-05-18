@@ -294,25 +294,28 @@ async def compare_devices(body: CompareDevicesRequest) -> CompareDevicesResponse
 
     prompt = _build_prompt(body)
 
-    # Gemini 3 Flash Preview is the primary; 2.5 Flash is the quota /
-    # transient-error fallback. BOTH must support the modern ``google_search``
-    # tool — gemini-2.5-flash-lite does NOT, so we never fall to it for a
-    # grounded call. The shared REST helper is async-native so concurrent
-    # compare requests don't block the event loop.
+    # Highest non-Pro Flash primary for best comparison quality on this
+    # heavy 16k-token call; non-lite 2.5 Flash sits in reserve on an
+    # independent quota counter. The shared REST helper is async-native so
+    # concurrent compare requests don't block the event loop. extra_models
+    # keeps the lite tiers as quota-survival rungs if both higher Flash
+    # variants exhaust.
     primary = getattr(settings, "ANALYST_MODEL", None) or "gemini-3-flash-preview"
     fallback = getattr(settings, "ANALYST_FALLBACK_MODEL", None) or "gemini-2.5-flash"
+    extras = ["gemini-3-flash-lite-preview", "gemini-2.5-flash-lite"]
 
     try:
         grounded = await call_gemini(
             primary_model=primary,
             fallback_model=fallback,
+            extra_models=extras,
             system=_COMPARE_SYSTEM,
             user_prompt=prompt,
             use_search=True,
             response_json=True,
             # 8-10 groups × ~5 rows × evidence + 4-6 paragraph summary easily
             # exceeds 8k tokens. 16k leaves headroom for cross-category mixes
-            # that produce extra groups, and Gemini 3 Flash bills the same.
+            # that produce extra groups, and Gemini 3 Flash-Lite bills the same.
             max_output_tokens=16384,
             temperature=0.3,
             top_p=0.95,

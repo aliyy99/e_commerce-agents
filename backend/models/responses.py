@@ -24,8 +24,10 @@ class DetectedSpec(BaseModel):
 
 class VisionResponse(BaseModel):
     """
-    Structured output from the Vision Agent (Gemini 3 Flash, with Gemini 2.5
-    Pro fallback). Identifies product details from an image.
+    Structured output from the Vision Agent (Gemini 3 Flash primary,
+    cascading down to non-lite 2.5 Flash, then lite tiers, and Pro
+    variants as a paid-plan last resort). Identifies product details
+    from an image.
     """
     status:       AgentStatus
     agent:        str              = "vision_agent (gemini-3-flash)"
@@ -101,7 +103,7 @@ class AnalystResponse(BaseModel):
     didn't pass one.
     """
     status:        AgentStatus
-    agent:         str           = "analyst_agent (gemini-2.5-flash)"
+    agent:         str           = "analyst_agent (gemini-3-flash)"
     product_id:    str
     product_name:  str
     strategy:      BuyStrategy
@@ -110,7 +112,7 @@ class AnalystResponse(BaseModel):
     price_trend:   PriceTrend
     ai_summary:    str           = Field(..., description="Plain-language buying recommendation.")
     final_recommendation: str    = Field(..., description="Detailed Buy/Wait reasoning.")
-    model_used:    str           = "gemini-2.5-flash"
+    model_used:    str           = "gemini-3-flash-preview"
     error_detail:  Optional[str] = None
 
 

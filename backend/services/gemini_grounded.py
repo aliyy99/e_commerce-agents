@@ -73,7 +73,7 @@ def _repair_json_aggressive(s: str) -> str:
     "..." literal. It only edits content within string boundaries so structural
     JSON characters (braces, brackets, colons, commas) are never touched.
 
-    Two repairs are applied:
+    Three repairs are applied:
 
     1. Invalid backslash escapes — for any backslash whose follow-up byte is
        NOT one of ``" \ / b f n r t u``, we double the backslash so the parser
@@ -82,6 +82,13 @@ def _repair_json_aggressive(s: str) -> str:
     2. Bare control characters — raw ``\n``, ``\r`` or ``\t`` bytes inside a
        string literal violate the JSON spec. We replace them with their JSON
        escape sequences so multi-line model output stays parseable.
+    3. Unescaped embedded quotes — when the model emits a verbatim review
+       quote inside a string value (e.g. ``"evidence": "user said "harika""``)
+       a naive parser sees the inner ``"`` as a string terminator and trips
+       on the next non-structural char ("Expecting ',' delimiter"). We
+       lookahead past whitespace: if the next byte is a JSON structural
+       delimiter (`,`, `:`, `}`, `]`) or EOF, the quote really did close
+       the string; otherwise we escape it as ``\"`` and keep reading.
 
     Whitespace OUTSIDE strings is preserved verbatim because the parser is
     tolerant of it; we only normalise content the parser would otherwise reject.
@@ -102,9 +109,22 @@ def _repair_json_aggressive(s: str) -> str:
 
         # Inside a string literal.
         if c == '"':
-            # End of string.
-            in_string = False
-            out.append(c)
+            # Disambiguate "real close" from "embedded quote the model forgot
+            # to escape" by peeking past whitespace. A genuine closing quote
+            # is followed by one of the JSON structural delimiters (or EOF).
+            # Anything else — a letter, a digit, an opening quote — means the
+            # model emitted a verbatim quote inside the value and we need to
+            # escape it instead of terminating the string here.
+            j = i + 1
+            while j < n and s[j] in " \t\r\n":
+                j += 1
+            nxt = s[j] if j < n else ""
+            if j >= n or nxt in (",", ":", "}", "]"):
+                in_string = False
+                out.append(c)
+                i += 1
+                continue
+            out.append("\\\"")
             i += 1
             continue
 
@@ -315,10 +335,14 @@ async def _call_once(
         try:
             parsed = _extract_json(text)
         except Exception as err:
-            preview = text[:400].replace("\n", " ")
+            # Bigger preview — when parsing fails at e.g. char 6650 the prior
+            # 400-char snippet was useless. 2000 chars is large enough to
+            # inspect the offending region in logs without flooding them, and
+            # we strip raw newlines so the message stays on one line.
+            preview = text[:2000].replace("\n", " ").replace("\r", " ")
             logger.warning(
-                "Gemini JSON extraction failed (model=%s): %s | raw=%r",
-                model_name, err, preview,
+                "Gemini JSON extraction failed (model=%s, response_len=%d): %s | raw=%r",
+                model_name, len(text), err, preview,
             )
             raise
     return GroundedResult(

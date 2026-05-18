@@ -532,34 +532,32 @@ async def _generate_deep_analysis(
     blocking) and the only path that supports the modern ``google_search``
     tool form Gemini 2.5+ requires.
     """
-    # SPEED-TUNED cascade — same quality, fewer wasted retries.
+    # QUALITY-FIRST cascade — highest non-Pro Flash primary, non-lite 2.5
+    # Flash as the grounding-safe safety net on an independent quota
+    # counter, then the lite tiers as quota-survival rungs if both
+    # higher-tier Flash variants are exhausted.
     #
-    # Earlier the order was Pro-first. In practice gemini-3-pro-preview
-    # 503's almost every call on free-tier quota, which costs us a full
-    # 2s retry + a second 503 before falling through (~7s burned per Pro
-    # rung tried). Gemini 3 Flash produces near-identical blind-spot /
-    # chronic-issue analysis on this prompt schema, has much broader RPM,
-    # and almost always responds on the first try.
+    # The lite rungs are kept because the ``google_search`` tool can
+    # occasionally misfire on lite variants (the model emits the raw
+    # ``<tool_code print(...)>`` invocation as text instead of executing
+    # it, producing unparseable JSON). When that happens the cascade
+    # rolls forward to the next rung — quality is preserved on the happy
+    # path while the deeper rungs survive a full-quota incident.
     #
-    # Final order — quality preserved, dead weight at the back:
-    #   gemini-3-flash-preview     — fast Gemini 3, default winner.
-    #   gemini-3-pro-preview       — Pro still considered, but only if Flash
-    #                                actually 503's (rare).
-    #   gemini-2.5-pro             — last "Pro" rung before generation drop.
-    #   gemini-2.5-flash           — known stable; also catches user override.
-    #   gemini-2.5-flash-lite      — last resort, quality dips slightly here.
-    # NOTE: gemini-2.5-flash-lite is excluded from this cascade. With the
-    # google_search tool enabled it occasionally emits the raw
-    # ``<tool_code print(...)>`` invocation as text instead of executing it,
-    # producing unparseable output. The remaining models all honour grounding
-    # correctly, so flash-lite is reserved for non-grounded routes.
+    # Final order:
+    #   primary                       — operator override (default: 3-flash-preview)
+    #   fallback                      — operator override (default: 2.5-flash)
+    #   gemini-3-flash-lite-preview   — quota-survival rung, lite Flash 3
+    #   gemini-2.5-flash-lite         — last quota-survival rung
+    #   gemini-3-pro-preview          — paid-tier deep reasoner, free-tier 503's fast
+    #   gemini-2.5-pro                — older Pro variant if available on the key
     cascade = [
-        "gemini-3-flash-preview",
-        "gemini-3-pro-preview",
-        "gemini-2.5-pro",
         primary,
         fallback,
-        "gemini-2.5-flash",
+        "gemini-3-flash-lite-preview",
+        "gemini-2.5-flash-lite",
+        "gemini-3-pro-preview",
+        "gemini-2.5-pro",
     ]
     cascade = [m for m in cascade if m]
     head, tail = cascade[0], cascade[1] if len(cascade) > 1 else None
@@ -961,9 +959,13 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
         grounded = await _generate_deep_analysis(
             analyst_primary, analyst_fallback, prompt, request.locale,
         )
-    except GeminiAuthError as err:
-        logger.error("CompareAgent auth error: %s", err)
-        raise RuntimeError(str(err)) from err
+    except GeminiAuthError:
+        # Preserve the auth-error TYPE so upstream code (and any future
+        # FastAPI exception handler) can branch on it. Converting it to a
+        # plain RuntimeError loses that distinction and collapses every
+        # failure to a generic 502 in the route.
+        logger.error("CompareAgent auth error", exc_info=True)
+        raise
 
     if grounded.parsed is None:
         raise RuntimeError(

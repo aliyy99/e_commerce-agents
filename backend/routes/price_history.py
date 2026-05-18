@@ -351,13 +351,17 @@ async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
     months = _last_12_months()
     prompt = _build_prompt(body.product_name, body.currency, months)
 
-    # Tight cascade: Gemini 3 Flash (best grounded research quality) → 2.5 Flash
-    # fallback. ``google_search`` is the only tool form these models accept;
-    # older ``google_search_retrieval`` returns 400. At most 2 API calls per
-    # request keeps the quota footprint small.
+    # Highest non-Pro Flash first cascade. Lite tiers stay in reserve as
+    # quota-survival rungs because ``google_search`` grounding can flake
+    # on them — when that happens we roll forward to the next rung.
+    # ``google_search`` is the only tool form these models accept; older
+    # ``google_search_retrieval`` returns 400. Worst case is 4 API calls
+    # but the happy path is 1.
     candidate_models = list(dict.fromkeys([
         getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-3-flash-preview",
         getattr(settings, "PRICE_HISTORY_FALLBACK_MODEL", None) or "gemini-2.5-flash",
+        "gemini-3-flash-lite-preview",
+        "gemini-2.5-flash-lite",
     ]))
     candidate_models = [m for m in candidate_models if m]
 

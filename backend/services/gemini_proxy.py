@@ -277,12 +277,18 @@ def generate_chat_reply(request: ChatRequest) -> str:
     """Proxy frontend chat payload to Gemini and return plain reply text."""
     configure_gemini_client()
     messages = _build_chat_messages(request)
-    # Order matters: primary chat model first, then a distinct Flash fallback
-    # (so we don't re-hit the same model on a 429), then Pro as last resort.
+    # Order matters: highest non-Pro Flash primary + non-lite 2.5 Flash
+    # fallback, then the lite tiers as quota-survival rungs (the
+    # ``google_search`` tool can flake on lite previews, but they still
+    # answer non-grounded chat fine), and finally PRO_MODEL as last resort.
+    # dict.fromkeys preserves order while de-duplicating operator overrides
+    # that collapse onto the same model name.
     candidate_models = list(dict.fromkeys([
         settings.CHAT_MODEL,
         settings.CHAT_FALLBACK_MODEL,
         settings.FLASH_MODEL,
+        "gemini-3-flash-lite-preview",
+        "gemini-2.5-flash-lite",
         settings.PRO_MODEL,
     ]))
 

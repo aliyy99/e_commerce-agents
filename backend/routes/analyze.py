@@ -9,6 +9,7 @@ from ..agents.analyst_agent import run_analyst_agent
 from ..agents.compare_agent import run_compare_agent
 from ..models.requests      import AnalystRequest, CompareRequest
 from ..models.responses     import AnalystResponse, AgentStatus, CompareResponse
+from ..services.gemini_client import GeminiAuthError
 
 logger = logging.getLogger("technotrack.routes.analyze")
 router = APIRouter(prefix="/analyze", tags=["Analyst Agent"])
@@ -29,6 +30,14 @@ async def analyze_compare(body: CompareRequest) -> CompareResponse:
             lowest_price_site=result.get("lowest_price_site"),
             store_prices=result.get("store_prices") or [],
             model_used=result.get("model_used"),
+        )
+    except GeminiAuthError as err:
+        # 401 communicates "your credentials are bad" — the operator needs to
+        # rotate GEMINI_API_KEY; retrying with the current value will not help.
+        logger.error("Compare agent auth failure: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(err),
         )
     except Exception as err:
         logger.error("Compare agent failed: %s", err)
@@ -60,7 +69,14 @@ async def analyze_reviews(body: AnalystRequest) -> AnalystResponse:
         "POST /analyze/reviews (product=%s, reviews=%d)",
         body.product_name, len(body.reviews),
     )
-    result = await run_analyst_agent(body)
+    try:
+        result = await run_analyst_agent(body)
+    except GeminiAuthError as err:
+        logger.error("Analyst agent auth failure: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(err),
+        )
     if result.status == AgentStatus.ERROR:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
