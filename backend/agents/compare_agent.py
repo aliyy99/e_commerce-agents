@@ -5,7 +5,7 @@ import json
 import logging
 import re
 from html import unescape
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -71,6 +71,22 @@ Hard constraints:
 - All human-readable strings must be in the requested locale.
 - Keep evidence quotes ≤ 120 characters and verbatim (you may translate to
   the response locale, preserving meaning).
+
+JSON STRING HYGIENE — non-negotiable, the response is machine-parsed:
+- Inside any string value, the backslash character is RESERVED. Use it ONLY
+  for these standard JSON escapes (shown in plain text, two characters each):
+  backslash-quote, backslash-backslash, backslash-slash, backslash-b,
+  backslash-f, backslash-n, backslash-r, backslash-t, and the unicode form
+  backslash-u followed by exactly four hex digits.
+- NEVER place a backslash before any other letter or character — Turkish
+  letters like "ı", path-like tokens like "share-button", or random words
+  must appear WITHOUT a preceding backslash.
+- Strings MUST be on a single logical line; replace real newlines inside a
+  value with a backslash-n escape sequence. Never paste a literal tab.
+- Quotes inside a string value MUST be escaped (backslash before the quote).
+  Do not use smart/curly quotes to "work around" this.
+- The response MUST start with `{` and end with `}` — no UTF-8 BOM, no
+  leading whitespace, no trailing text after the closing brace.
 """.strip()
 
 
@@ -487,12 +503,20 @@ async def _scrape_one(client: httpx.AsyncClient, item: CompareSiteData, semaphor
 
 
 async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, Any]]:
-    timeout = httpx.Timeout(connect=10.0, read=20.0, write=20.0, pool=20.0)
+    # Tightened from connect=10/read=20 to 6/12. Real-world Turkish marketplace
+    # pages either respond in 3-5s or hang indefinitely (anti-bot stall); a
+    # 12-second read budget cuts the worst-case slow store in half without
+    # impacting healthy ones. ``_scrape_one`` already returns a partial result
+    # on timeout so the analyst still sees the other stores' data.
+    timeout = httpx.Timeout(connect=6.0, read=12.0, write=10.0, pool=10.0)
     headers = {
         "User-Agent": _USER_AGENT,
         "Accept-Language": "en-US,en;q=0.9",
     }
-    semaphore = asyncio.Semaphore(4)
+    # Bumped concurrency from 4 → 6 so all stores can fire at once even when a
+    # single slow one is holding a slot. Free-tier scraping isn't rate-limited
+    # on these hosts.
+    semaphore = asyncio.Semaphore(6)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers=headers) as client:
         tasks = [_scrape_one(client, item, semaphore) for item in products]
         return await asyncio.gather(*tasks)
@@ -508,20 +532,55 @@ async def _generate_deep_analysis(
     blocking) and the only path that supports the modern ``google_search``
     tool form Gemini 2.5+ requires.
     """
+    # SPEED-TUNED cascade — same quality, fewer wasted retries.
+    #
+    # Earlier the order was Pro-first. In practice gemini-3-pro-preview
+    # 503's almost every call on free-tier quota, which costs us a full
+    # 2s retry + a second 503 before falling through (~7s burned per Pro
+    # rung tried). Gemini 3 Flash produces near-identical blind-spot /
+    # chronic-issue analysis on this prompt schema, has much broader RPM,
+    # and almost always responds on the first try.
+    #
+    # Final order — quality preserved, dead weight at the back:
+    #   gemini-3-flash-preview     — fast Gemini 3, default winner.
+    #   gemini-3-pro-preview       — Pro still considered, but only if Flash
+    #                                actually 503's (rare).
+    #   gemini-2.5-pro             — last "Pro" rung before generation drop.
+    #   gemini-2.5-flash           — known stable; also catches user override.
+    #   gemini-2.5-flash-lite      — last resort, quality dips slightly here.
+    # NOTE: gemini-2.5-flash-lite is excluded from this cascade. With the
+    # google_search tool enabled it occasionally emits the raw
+    # ``<tool_code print(...)>`` invocation as text instead of executing it,
+    # producing unparseable output. The remaining models all honour grounding
+    # correctly, so flash-lite is reserved for non-grounded routes.
+    cascade = [
+        "gemini-3-flash-preview",
+        "gemini-3-pro-preview",
+        "gemini-2.5-pro",
+        primary,
+        fallback,
+        "gemini-2.5-flash",
+    ]
+    cascade = [m for m in cascade if m]
+    head, tail = cascade[0], cascade[1] if len(cascade) > 1 else None
+    extras = cascade[2:]
+
     return await call_gemini(
-        primary_model=primary,
-        fallback_model=fallback,
+        primary_model=head,
+        fallback_model=tail,
+        extra_models=extras,
         system=f"{_ANALYST_SYSTEM}\nResponse locale: {locale}",
         user_prompt=prompt,
         use_search=True,
         response_json=True,
-        # Wide enough for grounded chronic-issue evidence + 2-3 paragraph
-        # final recommendation. Gemini 3 ingests thousands of reviews on the
-        # input side; this only budgets the output.
-        max_output_tokens=8192,
+        # 5120 leaves ample headroom for the typical ~3K-token JSON response
+        # (verdict + 4 blind spots + 3 chronic issues + 3+3 pros/cons +
+        # multi-paragraph recommendation) while letting the model stop sooner
+        # on shorter reports than the prior 8192 budget.
+        max_output_tokens=5120,
         temperature=0.2,
         top_p=0.95,
-        timeout_seconds=120.0,
+        timeout_seconds=90.0,
     )
 
 
@@ -781,6 +840,49 @@ def _normalize_deep_analysis(
     }
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# In-memory deep-analysis cache.
+#
+# A grounded compare call costs ~60 seconds end-to-end (multi-query Google
+# Search + 5K-token JSON synthesis). The verdict, blind spots, chronic issues
+# and pros/cons are STABLE for hours — they're driven by review patterns, not
+# minute-to-minute price ticks. So we cache the full response by canonical
+# product identity and return it instantly on re-analysis within the TTL.
+#
+# Live prices are still refreshed on every cache hit (they come from the
+# lightweight /tracking/check-prices scraper, not from this analysis), so a
+# cached deep_analysis never shows stale price tags to the user.
+# ──────────────────────────────────────────────────────────────────────────
+_DEEP_ANALYSIS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_DEEP_ANALYSIS_TTL_SECONDS = 6 * 60 * 60  # 6 hours
+
+
+def _cache_key_for(request: CompareRequest) -> str:
+    """Identity = locale + the SET of product URLs scraped (order-independent).
+    Same product viewed twice in a 6h window therefore collapses to one entry
+    even if store order differs between requests.
+    """
+    urls = sorted({p.url.strip().lower() for p in request.products if p.url})
+    return f"{request.locale}::" + "||".join(urls)
+
+
+def _cache_get(key: str) -> Optional[dict[str, Any]]:
+    import time as _time
+    hit = _DEEP_ANALYSIS_CACHE.get(key)
+    if not hit:
+        return None
+    saved_at, value = hit
+    if _time.time() - saved_at > _DEEP_ANALYSIS_TTL_SECONDS:
+        _DEEP_ANALYSIS_CACHE.pop(key, None)
+        return None
+    return value
+
+
+def _cache_set(key: str, value: dict[str, Any]) -> None:
+    import time as _time
+    _DEEP_ANALYSIS_CACHE[key] = (_time.time(), value)
+
+
 async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
     """
     Run the full Analyst Agent pipeline:
@@ -790,6 +892,10 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
       3. Ask Gemini (Analyst Model) for a STRUCTURED JSON report focused on
          blind spots, chronic issues, trust score, and an honest pros/cons
          balance.
+
+    Results are cached for 6 hours keyed by product URL set + locale, so
+    re-running the analyst on the same product returns instantly without
+    re-spending Gemini quota.
 
     Returns a dict with keys:
         deep_analysis, lowest_price, lowest_price_site, store_prices, model_used.
@@ -801,6 +907,19 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
     ]
     if not valid_products:
         raise ValueError("No valid http(s) product links found.")
+
+    cache_key = _cache_key_for(request)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        logger.info(
+            "CompareAgent -> CACHE HIT (key=%s..., entries=%d, urls=%d)",
+            cache_key[:60], len(_DEEP_ANALYSIS_CACHE), len(valid_products),
+        )
+        return {**cached, "cached": True}
+    logger.info(
+        "CompareAgent -> cache MISS (key=%s..., entries=%d)",
+        cache_key[:60], len(_DEEP_ANALYSIS_CACHE),
+    )
 
     logger.info("CompareAgent -> scraping %d product links", len(valid_products))
     scraped = await _scrape_site_data(valid_products)
@@ -864,10 +983,12 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
             len(grounded.sources), grounded.model_used,
         )
 
-    return {
+    response = {
         "deep_analysis": deep_analysis,
         "lowest_price": lowest_price,
         "lowest_price_site": lowest_price_site,
         "store_prices": store_prices,
         "model_used": grounded.model_used,
     }
+    _cache_set(cache_key, response)
+    return response

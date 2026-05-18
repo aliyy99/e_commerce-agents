@@ -147,6 +147,28 @@ export async function fetchCampaigns({ connectedAccounts = [], locale = 'tr' } =
   });
 }
 
+/**
+ * Lightweight live-price check used by the in-app tracker. Hits the
+ * /tracking/check-prices endpoint which scrapes JSON-LD prices from the
+ * supplied store URLs — NO Gemini call, so safe to call on a short cadence.
+ * @param {Object} payload
+ * @param {string} payload.productName
+ * @param {Array<{site:string, url:string, product_name?:string}>} payload.stores
+ */
+export async function checkTrackedPrices({ productName, stores }) {
+  return apiFetch('/tracking/check-prices', {
+    method: 'POST',
+    body: JSON.stringify({
+      product_name: productName,
+      stores: stores.map((s) => ({
+        site: s.site || s.name,
+        url: s.url,
+        product_name: s.product_name || productName,
+      })),
+    }),
+  });
+}
+
 export async function fetchPriceHistory({ productName, productId = null, currency = 'TRY', locale = 'tr' }) {
   return apiFetch('/price-history', {
     method: 'POST',

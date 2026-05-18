@@ -431,40 +431,6 @@ const AnalystReport = ({ analysis, modelUsed }) => {
         </Section>
       </div>
 
-      {/* Grounding sources */}
-      {(analysis.grounding_sources || []).length > 0 && (
-        <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center">
-              <Globe className="w-5 h-5" />
-            </div>
-            <div className="flex-1">
-              <div className="text-[10px] font-black uppercase tracking-widest text-sky-600">
-                Verified via Google Search
-              </div>
-              <h4 className="font-display text-lg font-black text-slate-900">Sources</h4>
-            </div>
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider bg-sky-50 text-sky-700">
-              {analysis.grounding_sources.length}
-            </span>
-          </div>
-          <ul className="space-y-1.5">
-            {analysis.grounding_sources.map((src, i) => (
-              <li key={i}>
-                <a
-                  href={src.uri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 hover:text-primary transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                  <span className="truncate">{src.title || src.uri}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* Final recommendation */}
       {analysis.final_recommendation && (

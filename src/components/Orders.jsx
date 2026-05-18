@@ -117,12 +117,20 @@ const formatDate = (iso) => {
   }
 };
 
-const Orders = () => {
+const Orders = ({ userOrders = [] }) => {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
 
+  // Live auto-buy orders (from App state) take priority over the seed list,
+  // so a fresh purchase always shows up at the top with the most-recent
+  // timestamp without the user needing to refresh.
+  const allOrders = useMemo(
+    () => [...userOrders, ...MOCK_ORDERS],
+    [userOrders],
+  );
+
   const filtered = useMemo(() => {
-    return MOCK_ORDERS.filter((o) => {
+    return allOrders.filter((o) => {
       if (filter === 'auto-buy' && o.method !== 'auto-buy') return false;
       if (filter === 'scheduled' && o.status !== 'scheduled') return false;
       if (filter === 'delivered' && o.status !== 'delivered') return false;
@@ -136,13 +144,13 @@ const Orders = () => {
       }
       return true;
     });
-  }, [filter, query]);
+  }, [filter, query, allOrders]);
 
   const totals = useMemo(() => {
-    const completed = MOCK_ORDERS.filter((o) => o.status === 'delivered');
-    const inFlight = MOCK_ORDERS.filter((o) => ['shipped', 'processing'].includes(o.status));
-    const scheduled = MOCK_ORDERS.filter((o) => o.status === 'scheduled');
-    const savedTotal = MOCK_ORDERS
+    const completed = allOrders.filter((o) => o.status === 'delivered');
+    const inFlight = allOrders.filter((o) => ['shipped', 'processing'].includes(o.status));
+    const scheduled = allOrders.filter((o) => o.status === 'scheduled');
+    const savedTotal = allOrders
       .filter((o) => o.price != null && o.originalPrice != null)
       .reduce((acc, o) => acc + (o.originalPrice - o.price), 0);
     return {
@@ -151,7 +159,7 @@ const Orders = () => {
       scheduled: scheduled.length,
       saved: savedTotal,
     };
-  }, []);
+  }, [allOrders]);
 
   return (
     <motion.div

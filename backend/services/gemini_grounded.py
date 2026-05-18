@@ -27,6 +27,7 @@ OUTPUT GUARANTEES
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -57,10 +58,110 @@ _DEFAULT_SAFETY = [
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
 _TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
+# JSON spec allows exactly these chars after a backslash. Anything else inside
+# a string literal is an invalid escape sequence and json.loads chokes — Gemini
+# happily emits things like "\share-button" or Turkish "\ı" so we have to fix
+# them up before parsing.
+_VALID_JSON_ESCAPE_CHARS = set('"\\/bfnrtu')
+
+
+def _repair_json_aggressive(s: str) -> str:
+    r"""Repair invalid escape sequences and unescaped control chars inside JSON
+    string literals.
+
+    The function is a small state machine that tracks whether we're inside a
+    "..." literal. It only edits content within string boundaries so structural
+    JSON characters (braces, brackets, colons, commas) are never touched.
+
+    Two repairs are applied:
+
+    1. Invalid backslash escapes — for any backslash whose follow-up byte is
+       NOT one of ``" \ / b f n r t u``, we double the backslash so the parser
+       reads it as a literal ``\``. This handles the most common Gemini bug
+       (``\ı``, ``\s``, ``\share-button``, unescaped Windows paths).
+    2. Bare control characters — raw ``\n``, ``\r`` or ``\t`` bytes inside a
+       string literal violate the JSON spec. We replace them with their JSON
+       escape sequences so multi-line model output stays parseable.
+
+    Whitespace OUTSIDE strings is preserved verbatim because the parser is
+    tolerant of it; we only normalise content the parser would otherwise reject.
+    """
+    out: list[str] = []
+    in_string = False
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+
+        if not in_string:
+            if c == '"':
+                in_string = True
+            out.append(c)
+            i += 1
+            continue
+
+        # Inside a string literal.
+        if c == '"':
+            # End of string.
+            in_string = False
+            out.append(c)
+            i += 1
+            continue
+
+        if c == "\\":
+            nxt = s[i + 1] if i + 1 < n else ""
+            if nxt in _VALID_JSON_ESCAPE_CHARS:
+                # Valid escape — copy verbatim. For \uXXXX we also need to copy
+                # the 4 hex digits, but the parser will validate them itself;
+                # if they're malformed we can't trivially repair without
+                # ambiguity, so we leave that case to the outer fallback.
+                out.append(c)
+                out.append(nxt)
+                i += 2
+                continue
+            # Invalid escape → double the backslash so it becomes literal.
+            out.append("\\\\")
+            i += 1
+            continue
+
+        if c == "\n":
+            out.append("\\n"); i += 1; continue
+        if c == "\r":
+            out.append("\\r"); i += 1; continue
+        if c == "\t":
+            out.append("\\t"); i += 1; continue
+        # Other control bytes (< 0x20) the parser also rejects; escape them.
+        if ord(c) < 0x20:
+            out.append("\\u%04x" % ord(c)); i += 1; continue
+
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def _repair_json(s: str) -> str:
+    """Cheap structural repairs (only trailing commas). Combine with
+    ``_repair_json_aggressive`` for content-level fixes when needed.
+    """
     return _TRAILING_COMMA_RE.sub(r"\1", s)
+
+
+def _try_parse_with_repairs(s: str) -> Optional[dict]:
+    """Try a stack of progressively more aggressive repairs. Returns the
+    parsed dict on first success, None if every pass fails.
+    """
+    candidates = (
+        s,
+        _repair_json(s),
+        _repair_json_aggressive(s),
+        _repair_json_aggressive(_repair_json(s)),
+    )
+    for c in candidates:
+        try:
+            return json.loads(c, strict=False)
+        except json.JSONDecodeError:
+            continue
+    return None
 
 
 def _extract_json(text: str) -> dict:
@@ -68,32 +169,30 @@ def _extract_json(text: str) -> dict:
         raise ValueError("Empty model response.")
     text = text.strip()
 
-    def _loads(s: str) -> dict:
-        return json.loads(s, strict=False)
+    # Pass 1 — raw text as-is, with repair stack.
+    parsed = _try_parse_with_repairs(text)
+    if parsed is not None:
+        return parsed
 
-    for candidate in (text, _repair_json(text)):
-        try:
-            return _loads(candidate)
-        except json.JSONDecodeError:
-            continue
-
+    # Pass 2 — fenced ```json block.
     fence = _JSON_FENCE_RE.search(text)
     if fence:
-        for candidate in (fence.group(1), _repair_json(fence.group(1))):
-            try:
-                return _loads(candidate)
-            except json.JSONDecodeError:
-                continue
+        parsed = _try_parse_with_repairs(fence.group(1))
+        if parsed is not None:
+            return parsed
 
+    # Pass 3 — first {...} slice.
     first, last = text.find("{"), text.rfind("}")
     if first != -1 and last > first:
-        slice_ = text[first : last + 1]
-        for candidate in (slice_, _repair_json(slice_)):
-            try:
-                return _loads(candidate)
-            except json.JSONDecodeError as err:
-                last_err = err
-        raise ValueError(f"JSON parse failed: {last_err}") from last_err
+        sliced = text[first : last + 1]
+        parsed = _try_parse_with_repairs(sliced)
+        if parsed is not None:
+            return parsed
+        # Diagnostic: surface the exact JSON error so logs are actionable.
+        try:
+            json.loads(_repair_json_aggressive(sliced), strict=False)
+        except json.JSONDecodeError as err:
+            raise ValueError(f"JSON parse failed: {err}") from err
 
     raise ValueError("No JSON object found in response.")
 
@@ -194,9 +293,19 @@ async def _call_once(
                 "Gemini API anahtarı geçersiz veya yetkisiz. backend/.env içindeki "
                 "GEMINI_API_KEY değerini yenileyin."
             )
-        raise RuntimeError(
+        err = RuntimeError(
             f"Gemini REST {resp.status_code} (model={model_name}): {snippet}"
         )
+        # Two flavours of "try again later":
+        #   503 UNAVAILABLE = traffic shaper spike. Usually clears in 2-3s, so
+        #     worth one same-model retry before falling through.
+        #   429 Too Many Requests = quota window (per-minute RPM). Won't clear
+        #     in 2s; retrying the same model wastes another HTTP round-trip
+        #     for nothing. Mark as quota-limited and skip retry — the cascade
+        #     immediately moves to the next model, which has independent RPM.
+        err.is_transient = resp.status_code == 503 or "UNAVAILABLE" in snippet
+        err.is_quota_limited = resp.status_code == 429
+        raise err
 
     data = resp.json()
     text = _extract_text(data)
@@ -261,30 +370,66 @@ async def call_gemini(
     last_err: Exception | None = None
     async with httpx.AsyncClient(timeout=timeout) as client:
         for idx, model_name in enumerate(candidates):
-            try:
-                result = await _call_once(
-                    client, model_name,
-                    system=system,
-                    user_prompt=user_prompt,
-                    use_search=use_search,
-                    response_json=response_json,
-                    max_output_tokens=max_output_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                )
-                if idx > 0:
-                    logger.warning(
-                        "call_gemini -> fallback model used: %s", model_name
+            # One retry per model when the failure is transient (503/429 from
+            # Google's traffic shaper). Brief backoff before the second try —
+            # demand spikes are usually < 3 seconds.
+            for attempt in range(2):
+                try:
+                    result = await _call_once(
+                        client, model_name,
+                        system=system,
+                        user_prompt=user_prompt,
+                        use_search=use_search,
+                        response_json=response_json,
+                        max_output_tokens=max_output_tokens,
+                        temperature=temperature,
+                        top_p=top_p,
                     )
-                return result
-            except GeminiAuthError:
-                raise
-            except Exception as err:
-                last_err = err
-                if is_rate_limit_error(err):
-                    logger.warning("call_gemini quota on %s, trying fallback.", model_name)
-                else:
-                    logger.warning("call_gemini failed on %s: %s", model_name, err)
+                    if idx > 0 or attempt > 0:
+                        logger.warning(
+                            "call_gemini -> recovered with model=%s (attempt=%d)",
+                            model_name, attempt + 1,
+                        )
+                    return result
+                except GeminiAuthError:
+                    raise
+                except Exception as err:
+                    last_err = err
+                    transient_overload = bool(getattr(err, "is_transient", False))
+                    quota_limited = bool(getattr(err, "is_quota_limited", False)) or is_rate_limit_error(err)
+                    # Only 503/UNAVAILABLE warrants a same-model retry. A 429
+                    # quota window won't clear in 2 seconds, so don't waste
+                    # the second HTTP round-trip on it.
+                    if transient_overload and not quota_limited and attempt == 0:
+                        logger.warning(
+                            "call_gemini transient on %s — retrying once after 2s backoff.",
+                            model_name,
+                        )
+                        await asyncio.sleep(2.0)
+                        continue  # Retry the same model once.
+                    if quota_limited:
+                        logger.warning("call_gemini quota on %s, trying fallback.", model_name)
+                    elif transient_overload:
+                        logger.warning("call_gemini overload on %s, trying fallback.", model_name)
+                    else:
+                        logger.warning("call_gemini failed on %s: %s", model_name, err)
+                    break  # Stop retrying this model, move on to the next.
+
+    # Friendlier UI message — different copy for "everyone's busy" vs "we hit
+    # OUR per-minute quota with this key". The latter is the more common case
+    # during demo bursts.
+    if last_err is not None:
+        if getattr(last_err, "is_quota_limited", False) or is_rate_limit_error(last_err):
+            raise RuntimeError(
+                "Your Gemini key hit its per-minute quota. Please wait about a "
+                "minute and try again — the analysis will then run normally and "
+                "subsequent calls for the same product return instantly from cache."
+            ) from last_err
+        if getattr(last_err, "is_transient", False) or "UNAVAILABLE" in str(last_err):
+            raise RuntimeError(
+                "Gemini's analysis models are overloaded right now. Please try again "
+                "in a few seconds."
+            ) from last_err
 
     raise RuntimeError(
         f"All Gemini model candidates failed. Last error: {last_err}"

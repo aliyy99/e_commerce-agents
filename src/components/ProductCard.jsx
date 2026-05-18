@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Bell, ChevronLeft, ChevronRight, Timer, Tag, Percent, BellRing, ShoppingBag } from 'lucide-react';
+import { Heart, Bell, ChevronLeft, ChevronRight, Timer, Tag, Percent, BellRing, ShoppingBag, TrendingDown, TrendingUp, Minus, Store } from 'lucide-react';
 import { PRODUCT_IMAGE_FALLBACK } from '../utils/productImage';
+
+const formatTimeAgo = (isoString) => {
+  if (!isoString) return null;
+  const then = Date.parse(isoString);
+  if (!Number.isFinite(then)) return null;
+  const diffSec = Math.max(1, Math.floor((Date.now() - then) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  return new Date(then).toLocaleDateString();
+};
 
 const formatTimeLeft = (ms) => {
   if (ms <= 0) return 'Expired';
@@ -33,6 +46,7 @@ const ProductCard = ({
   trackingExpiresAt = null,
   priceAlert = null,
   trackingActions = null,
+  liveCheck = null,
 }) => {
   const images = (product.images && product.images.length > 0) ? product.images : [PRODUCT_IMAGE_FALLBACK];
   const averagePrice = computeAverageStorePrice(product?.stores);
@@ -80,8 +94,8 @@ const ProductCard = ({
 
   return (
     <div
-      className="glass-card flex flex-col overflow-hidden bg-white hover:border-primary/30 transition-all cursor-pointer group"
-      onClick={() => onClick(product)}
+      className={`glass-card flex flex-col overflow-hidden bg-white hover:border-primary/30 transition-all group ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick ? () => onClick(product) : undefined}
       onMouseEnter={() => setIsHover(true)}
       onMouseLeave={() => setIsHover(false)}
     >
@@ -178,12 +192,9 @@ const ProductCard = ({
               </>
             )}
           </div>
-          <button className="text-xs font-bold text-primary hover:underline">
-            View Details
-          </button>
         </div>
 
-        {(priceAlert || trackingActions) && (
+        {(priceAlert || trackingActions || liveCheck) && (
           <div className="mt-3 pt-3 border-t border-dashed border-slate-100 space-y-2">
             {priceAlert && (
               <div className="flex items-center gap-2">
@@ -207,6 +218,60 @@ const ProductCard = ({
                 </div>
               </div>
             )}
+            {liveCheck && liveCheck.lowestPrice != null && (() => {
+              const prev = liveCheck.previousLowestPrice;
+              const curr = liveCheck.lowestPrice;
+              const delta = (prev != null && Number.isFinite(prev)) ? curr - prev : null;
+              const TrendIcon = delta == null
+                ? Minus
+                : delta < 0 ? TrendingDown : delta > 0 ? TrendingUp : Minus;
+              const trendColor = delta == null
+                ? 'text-slate-400 bg-slate-100'
+                : delta < 0 ? 'text-emerald-600 bg-emerald-50' : delta > 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-100';
+              const target = priceAlert?.targetPrice ? Number(priceAlert.targetPrice) : null;
+              const targetPct = target && target > 0
+                ? Math.min(100, Math.max(0, Math.round((target / curr) * 100)))
+                : null;
+              return (
+                <div className="space-y-1.5 rounded-lg bg-slate-50/60 border border-slate-100 px-2.5 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${trendColor}`}>
+                      <TrendIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <div className="flex-1 min-w-0 text-[11px] leading-tight">
+                      <p className="font-bold text-slate-800 truncate">
+                        {Math.round(curr).toLocaleString('en-US')} TL
+                        {liveCheck.lowestStore && (
+                          <span className="font-medium text-slate-500"> at {liveCheck.lowestStore}</span>
+                        )}
+                      </p>
+                      <p className="text-slate-400 inline-flex items-center gap-1">
+                        <Store className="w-3 h-3" />
+                        Checked {formatTimeAgo(liveCheck.fetchedAt) || 'just now'}
+                        {delta != null && delta !== 0 && (
+                          <span className={delta < 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
+                            {' · '}{delta < 0 ? '−' : '+'}{Math.abs(Math.round(delta)).toLocaleString('en-US')} TL
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {targetPct != null && (
+                    <div>
+                      <div className="h-1 rounded-full bg-slate-200 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary to-emerald-500 transition-all"
+                          style={{ width: `${targetPct}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Target {Math.round(target).toLocaleString('en-US')} TL · {targetPct}% reached
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {trackingActions && (
               <div className="flex flex-wrap gap-1.5">
                 {trackingActions.notify && (
