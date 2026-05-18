@@ -38,7 +38,6 @@ const productLinksMapping = {
   ],
   "Samsung Galaxy Buds4 Pro Bluetooth Kulaklık Siyah (ANC)": [
     "https://www.hepsiburada.com/samsung-galaxy-buds4-pro-bluetooth-kulaklik-siyah-anc-p-HBCV0000CWH2BY",
-    "https://www.trendyol.com/sr?q=samsung%20galaxy%20buds%204%20pro&qt=samsung%20galaxy%20buds%204%20pro&st=samsung%20galaxy%20buds%204%20pro&os=1&sk=1",
     "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-buds4-pro-bluetooth-kulak-ici-kulaklik-siyah-1252511.html",
     "https://www.vatanbilgisayar.com/samsung-galaxy-buds4-pro-anc-kulak-ici-kablosuz-bluetooth-kulaklik-siyah.html"
   ]

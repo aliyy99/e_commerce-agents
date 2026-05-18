@@ -170,29 +170,15 @@ async def _call_pro_analyst(
         price_history_block=price_block,
     )
 
-    # Cascade primary → fallback → wide net of alternates. call_gemini
-    # already handles 503 retries, 429 fall-throughs, JSON repair and auth
-    # short-circuit — but a two-rung cascade collapses immediately when the
-    # primary's per-minute quota is exhausted AND the fallback is briefly
-    # overloaded (a frequent free-tier state). Broadening the list with
-    # ``extra_models`` lets us fall through to non-lite Flash members and
-    # the paid-tier Pro variants if any are reachable.
-    #
-    # Cascade ORDER (highest-first, dedup happens inside call_gemini so
-    # operator overrides are safe):
-    #   PRO_MODEL                    — operator-chosen primary (default 3-flash-preview)
-    #   PRO_FALLBACK_MODEL           — operator-chosen fallback (default 2.5-flash)
-    #   gemini-3-flash-lite-preview  — quota-survival rung if both Flash tiers exhaust
-    #   gemini-2.5-flash-lite        — last quota-survival Flash before Pro variants
-    #   gemini-3-pro-preview         — paid-tier deep reasoner; free-tier skips fast
-    #   gemini-2.5-pro               — same paid-tier role for the older family
-    # Reasoning over supplied data (``use_search=False``) means Flash has
-    # no grounding-tool quirks here, so the highest non-Pro Flash stays primary.
+    # Quota-survival cascade for free-tier keys. Each Flash variant has an
+    # independent per-minute RPM counter, so 429 on Flash-preview rolls
+    # forward to Flash 2.5, then the lite tiers. Lite tiers are safe here
+    # because this call uses ``use_search=False`` — the grounding tool's
+    # lite-variant misfire risk doesn't apply, so the deeper rungs are
+    # actually usable as quota survival.
     extras = [
         "gemini-3-flash-lite-preview",
         "gemini-2.5-flash-lite",
-        "gemini-3-pro-preview",
-        "gemini-2.5-pro",
     ]
     result = await call_gemini(
         primary_model=settings.PRO_MODEL,
@@ -205,7 +191,7 @@ async def _call_pro_analyst(
         max_output_tokens=2048,
         temperature=0.2,
         top_p=0.95,
-        timeout_seconds=90.0,
+        timeout_seconds=45.0,
     )
     if result.parsed is None:
         # Defensive — call_gemini raises on parse failure, so this branch
