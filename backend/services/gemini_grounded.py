@@ -1,29 +1,11 @@
-"""
-Shared async Gemini REST helper with Google Search grounding.
+"""Shared async Gemini REST helper with Google Search grounding.
 
-WHY THIS EXISTS
-───────────────
-Three agents (Analyst, Compare Devices, Price History) plus the Chat assistant
-all want the same thing: call a Gemini 3 / 2.5 Flash model with the modern
-``google_search`` tool, parse JSON safely, and surface the grounding chunks
-back as sources. The google-generativeai SDK 0.8.x only exposes the legacy
-``google_search_retrieval`` Tool which Gemini 2.5+ models reject, so every
-agent has had to bypass the SDK with httpx — duplicated three times.
-
-This module consolidates that into one ``call_gemini`` coroutine and switches
-the transport from sync httpx (which blocks the event loop) to
-``httpx.AsyncClient`` — concurrent route handlers now stay responsive while a
-model call is in flight.
-
-OUTPUT GUARANTEES
-─────────────────
-* When ``response_json=True`` the helper extracts JSON robustly: direct parse
-  first, then fenced ```json blocks, then the first ``{ … }`` slice, with
-  trailing-comma repair as a last resort. On total failure the raw text is
-  logged so operators can diagnose model-side regressions.
-* When grounding is enabled the helper returns a list of unique
-  ``{title, uri}`` source dicts pulled from the response's
-  ``groundingMetadata``.
+One ``call_gemini`` coroutine used by every agent: it talks to the REST API via
+``httpx.AsyncClient`` (the google-generativeai SDK only exposes the legacy
+``google_search_retrieval`` tool that Gemini 2.5+ rejects, and is sync-only).
+With ``response_json=True`` it extracts JSON robustly (direct parse → fenced
+block → first ``{…}`` slice → repair stack) and, when grounded, returns the
+unique ``{title, uri}`` sources from ``groundingMetadata``.
 """
 from __future__ import annotations
 

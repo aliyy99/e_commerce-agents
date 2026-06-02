@@ -351,16 +351,13 @@ async def get_price_history(body: PriceHistoryRequest) -> PriceHistoryResponse:
     months = _last_12_months()
     prompt = _build_prompt(body.product_name, body.currency, months)
 
-    # Highest non-Pro Flash first cascade. Lite tiers stay in reserve as
-    # quota-survival rungs because ``google_search`` grounding can flake
-    # on them — when that happens we roll forward to the next rung.
-    # ``google_search`` is the only tool form these models accept; older
-    # ``google_search_retrieval`` returns 400. Worst case is 4 API calls
-    # but the happy path is 1.
+    # Grounded research → Gemini 2.5 Flash family only (3.x models have no
+    # google_search quota on this key). 2.5 Flash-Lite is the reserve rung.
+    # ``google_search`` is the only tool form these models accept; the legacy
+    # ``google_search_retrieval`` returns 400.
     candidate_models = list(dict.fromkeys([
-        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-3-flash-preview",
-        getattr(settings, "PRICE_HISTORY_FALLBACK_MODEL", None) or "gemini-2.5-flash",
-        "gemini-3-flash-lite-preview",
+        getattr(settings, "PRICE_HISTORY_MODEL", None) or "gemini-2.5-flash",
+        getattr(settings, "PRICE_HISTORY_FALLBACK_MODEL", None) or "gemini-2.5-flash-lite",
         "gemini-2.5-flash-lite",
     ]))
     candidate_models = [m for m in candidate_models if m]

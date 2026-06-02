@@ -10,7 +10,7 @@ const productLinksMapping = {
   "Samsung Galaxy S25 Ultra 512 GB 12 GB Ram": [
     "https://www.hepsiburada.com/samsung-galaxy-s25-ultra-512-gb-12-gb-ram-samsung-turkiye-garantili-siyah-titanyum-p-HBCV00007MIDSU",
     "https://www.trendyol.com/samsung/galaxy-s25-ultra-512-gb-titanyum-siyah-samsung-turkiye-garantili-p-889950721?boutiqueId=61&merchantId=639331",
-    "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxys25-ultra-12gb256gb-akilli-telefon-titanyum-1245636.html",
+    "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-s25-ultra-12512gb-akilli-telefon-titanyum-siyah-1243753.html",
     "https://www.vatanbilgisayar.com/samsung-galaxy-s25-ultra-12-512-gb-akilli-telefon-titanyum-gumus.html"
   ],
   "Samsung Galaxy S24 256 GB 8 GB Ram": [
@@ -19,9 +19,9 @@ const productLinksMapping = {
     "https://www.mediamarkt.com.tr/tr/product/_samsung-galaxy-s24-8-gb-256-gb-akilli-telefon-siyah-163030835.html"
   ],
   "Apple Macbook Air M4 16 GB 512 GB SSD macOS 13\"": [
-    "https://www.hepsiburada.com/apple-macbook-air-m5-16gb-512gb-ssd-macos-13-tasinabilir-bilgisayar-gece-yarisi-mdhe4tu-a-pm-HBC0000D5X0MD",
+    "https://www.hepsiburada.com/apple-macbook-air-m4-16gb-512gb-ssd-macos-13-tasinabilir-bilgisayar-gece-yarisi-mw133tu-a-pm-HBC0000874A2V",
     "https://www.trendyol.com/apple/13-macbook-air-apple-m4-chip-with-10-core-cpu-and-10-core-gpu-16gb-512gb-ssd-yildiz-isigi-p-904728363?boutiqueId=689770&merchantId=968",
-    "https://www.mediamarkt.com.tr/tr/product/_apple-mc7c4tuamacbook-airapple-m4-islemci10-cekirdek-cpu-10-cekirdek-gpu16gb-ram512gb-ssd153sky-blue-1245668.html",
+    "https://www.mediamarkt.com.tr/tr/product/_apple-mw103tua-macbook-air-apple-m4-16-gb-ram-512-gb-ssd-136-inc-macos-laptop-yildiz-isigi-171195379.html",
     "https://www.vatanbilgisayar.com/macbook-air-mw133tu-a-m4-16gb-512gb-ssd-liquid-retina-13-6inc-gece-yarisi.html"
   ],
   "Apple iPhone 15 128 GB Mavi": [

@@ -1,22 +1,9 @@
-"""
-╔══════════════════════════════════════════════════════════════╗
-║             ANALYST AGENT  –  Gemini Flash                  ║
-╠══════════════════════════════════════════════════════════════╣
-║  Model: ``settings.PRO_MODEL`` (free-tier-safe Flash variant) ║
-║  ▸ Large context window: ingests thousands of reviews        ║
-║    + full price history in a single request                  ║
-║  ▸ Detects fake reviews, identifies recurring hardware /     ║
-║    software flaws, weighs contradictions                     ║
-║  ▸ Structured output mode for reliable JSON extraction       ║
-║  NOTE: Pro-family models are paid-tier only on this key      ║
-║  (limit=0 on free tier), so the default routes to Flash.     ║
-║                                                              ║
-║  This module delegates the actual model call + JSON parse to ║
-║  ``services.gemini_grounded.call_gemini`` so the analyst     ║
-║  shares the same async transport, repair stack and cascade   ║
-║  logic as the Compare and Price-History agents — one place   ║
-║  to fix when Gemini changes its output shape.                ║
-╚══════════════════════════════════════════════════════════════╝
+"""Analyst Agent — non-grounded review + price-history intelligence.
+
+Ingests scraped reviews and price history, then asks Gemini (``settings.PRO_MODEL``)
+for a structured JSON verdict: fake-review estimate, chronic issues, sentiment
+map, red flags and a buy/wait/avoid recommendation. The model call, JSON repair
+and quota cascade live in ``services.gemini_grounded.call_gemini``.
 """
 from __future__ import annotations
 
@@ -35,9 +22,6 @@ from ..services.gemini_grounded import call_gemini
 logger = logging.getLogger("technotrack.analyst_agent")
 
 
-# ─────────────────────────────────────────────────────────────
-# Prompt templates
-# ─────────────────────────────────────────────────────────────
 _ANALYST_SYSTEM = """
 You are an elite product intelligence analyst with expertise in:
 • Detecting fake / incentivized reviews using linguistic pattern analysis (Trust Check). Score generic reviews like "Great product", "Very good" as bot-like.
@@ -79,17 +63,10 @@ Analyze the above data and return ONLY this JSON structure:
 """.strip()
 
 
-# ─────────────────────────────────────────────────────────────
-# Price utilities
-# ─────────────────────────────────────────────────────────────
 def _compute_price_trend(price_history: List[PricePoint]) -> PriceTrend:
-    """
-    AGENT: Analyst Agent – Helper
-    Computes descriptive price statistics from raw price history.
-    Uses only stdlib (statistics module) — no pandas overhead.
-    """
+    """Descriptive price statistics (current / 30d low / 30d high / direction)."""
     prices = [p.price for p in price_history]
-    current = price_history[-1].price  # most recent entry
+    current = price_history[-1].price
     low_30  = min(prices)
     high_30 = max(prices)
 
@@ -109,54 +86,21 @@ def _compute_price_trend(price_history: List[PricePoint]) -> PriceTrend:
         lowest_30d=low_30,
         highest_30d=high_30,
         trend_direction=direction,
-        predicted_drop=None,  # Will be filled by Pro model
+        predicted_drop=None,
     )
 
 
-# ─────────────────────────────────────────────────────────────
-# Model call
-# ─────────────────────────────────────────────────────────────
 async def _call_pro_analyst(
     product_name: str,
     reviews: List[str],
     price_history: List[PricePoint],
     locale: str,
 ) -> tuple[dict, str]:
+    """Send all reviews + price history to ``settings.PRO_MODEL`` in one prompt
+    and return ``(parsed_json, model_used)``.
     """
-    AGENT: Analyst Agent
-    Sends all reviews + price history to Gemini (model from ``settings.PRO_MODEL``)
-    in a single mega-prompt. The analyst request can contain 5,000+ reviews
-    and the Flash model's long-context handling is sufficient for fake-review
-    detection and buy/wait reasoning. The "PRO_MODEL" setting name is kept for
-    backwards-compat — its value points to a free-tier Flash model.
-
-    Implementation note
-    ───────────────────
-    We route through ``services.gemini_grounded.call_gemini`` rather than the
-    sync google-generativeai SDK because:
-
-    * the SDK is synchronous and would block the FastAPI event loop for the
-      full duration of a multi-second Gemini call (everyone else freezes);
-    * the shared helper already implements quota cascade, 503 same-model
-      retry, auth-error short-circuit and — crucially — the JSON repair
-      stack that recovers from unescaped embedded quotes, invalid
-      ``\\<letter>`` escapes, bare control bytes and trailing commas. The
-      analyst's previous ad-hoc parser handled none of these.
-
-    Args:
-        product_name:  Display name for the product.
-        reviews:       List of raw scraped review strings.
-        price_history: Chronological list of PricePoint entries.
-        locale:        ISO-639 language code for the response.
-
-    Returns:
-        ``(parsed_json, model_used)`` — the analyst insights dict and the
-        model name that actually produced it (useful for response metadata).
-    """
-    # Compact the inputs to fit comfortably inside the model's context window
-    # even on free-tier Flash. The 500-review cap and 400-char-per-review
-    # ceiling together keep us under ~200K tokens with plenty of headroom
-    # for the system prompt and response.
+    # Cap at 500 reviews × 400 chars so the prompt stays well under the
+    # context limit with headroom for the system prompt and response.
     reviews_block = "\n".join(
         f"[{i+1}] {r[:400]}" for i, r in enumerate(reviews[:500])
     )
@@ -170,59 +114,32 @@ async def _call_pro_analyst(
         price_history_block=price_block,
     )
 
-    # Quota-survival cascade for free-tier keys. Each Flash variant has an
-    # independent per-minute RPM counter, so 429 on Flash-preview rolls
-    # forward to Flash 2.5, then the lite tiers. Lite tiers are safe here
-    # because this call uses ``use_search=False`` — the grounding tool's
-    # lite-variant misfire risk doesn't apply, so the deeper rungs are
-    # actually usable as quota survival.
-    extras = [
-        "gemini-3-flash-lite-preview",
-        "gemini-2.5-flash-lite",
-    ]
+    # Deep rung on an independent quota counter; this call is non-grounded so
+    # the lite tier is safe to use.
+    extras = ["gemini-2.5-flash-lite"]
     result = await call_gemini(
         primary_model=settings.PRO_MODEL,
         fallback_model=settings.PRO_FALLBACK_MODEL,
         extra_models=extras,
         system=_ANALYST_SYSTEM.format(locale=locale),
         user_prompt=prompt,
-        use_search=False,            # analyst reasons over supplied data only
+        use_search=False,
         response_json=True,
-        max_output_tokens=2048,
+        # Headroom for Gemini 3's thinking tokens + the full JSON report.
+        max_output_tokens=3072,
         temperature=0.2,
         top_p=0.95,
         timeout_seconds=45.0,
     )
     if result.parsed is None:
-        # Defensive — call_gemini raises on parse failure, so this branch
-        # only fires if ``response_json`` was somehow flipped to False.
         raise RuntimeError("Analyst model returned a non-JSON payload.")
     return result.parsed, result.model_used
 
 
-# ─────────────────────────────────────────────────────────────
-# Public entry-point
-# ─────────────────────────────────────────────────────────────
 async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> AnalystResponse:
-    """
-    AGENT: Analyst Agent  (Gemini Flash via ``settings.PRO_MODEL``)
-    ──────────────────────────────────────────────────────────────
-    Analyzes scraped reviews and price history to produce:
-      • Fake review percentage estimate
-      • Chronic product issue list
-      • Sentiment score and Sentiment Map
-      • Red Flag detection
-      • Buy / Wait / Avoid recommendation
-      • Plain-language AI summary and Final Strategy
-
-    Model is resolved from ``settings.PRO_MODEL``; defaults to a free-tier
-    Flash variant because Pro models have zero free quota on the active key.
-
-    Args:
-        request: Validated AnalystRequest.
-
-    Returns:
-        AnalystResponse with full product intelligence report.
+    """Analyze scraped reviews + price history into an AnalystResponse:
+    fake-review %, chronic issues, sentiment map, red flags and a
+    buy/wait/avoid recommendation.
     """
     logger.info(
         "AnalystAgent → starting (product=%s, reviews=%d)",
@@ -232,14 +149,10 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
     if emit_status:
         await emit_status(f"Analyst Agent interpreting data ({settings.PRO_MODEL})...")
 
-    # Pre-compute price trend (synchronous, cheap)
     price_trend = _compute_price_trend(request.price_history)
 
-    # Single entrypoint — the cascade, retries, JSON repair and auth handling
-    # all live inside ``call_gemini``. Auth errors bubble up as
-    # GeminiAuthError so the route layer can return a meaningful status code;
-    # everything else collapses to a graceful AnalystResponse(status=ERROR)
-    # with the underlying message in ``error_detail``.
+    # Auth errors bubble up for the route layer; everything else degrades to a
+    # graceful AnalystResponse(status=ERROR) instead of a 500.
     try:
         data, used_model = await _call_pro_analyst(
             product_name=request.product_name,
@@ -271,7 +184,6 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
     if emit_status:
         await emit_status("Analysis complete, final strategy created.")
 
-    # Merge predicted_drop from model into pre-computed trend
     price_trend.predicted_drop  = data.get("predicted_drop")
     price_trend.trend_direction = data.get("trend_direction", price_trend.trend_direction)
 

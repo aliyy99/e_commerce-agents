@@ -26,6 +26,27 @@ _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
+
+
+def _supported_accept_encoding() -> str:
+    """Advertise Brotli ONLY if a decoder is importable.
+
+    Turkish marketplaces (Vatan, MediaMarkt, …) honour ``Accept-Encoding: br``
+    and return Brotli-compressed HTML. httpx can only decode it when the
+    ``brotli``/``brotlicffi`` package is installed; without it ``response.text``
+    is undecodable garbage and every price/JSON-LD extraction silently fails.
+    gzip + deflate are always decodable via the stdlib, so they stay.
+    """
+    for module in ("brotli", "brotlicffi"):
+        try:
+            __import__(module)
+            return "gzip, deflate, br"
+        except ImportError:
+            continue
+    return "gzip, deflate"
+
+
+_ACCEPT_ENCODING = _supported_accept_encoding()
 _JSON_LD_RE = re.compile(
     r"<script[^>]+type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
     flags=re.IGNORECASE | re.DOTALL,
@@ -531,7 +552,7 @@ async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, A
         "User-Agent": _USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": _ACCEPT_ENCODING,
         "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
         "Sec-Ch-Ua-Mobile": "?0",
         "Sec-Ch-Ua-Platform": '"Windows"',
@@ -553,39 +574,17 @@ async def _generate_deep_analysis(
 ) -> GroundedResult:
     """Call Gemini with Google Search grounding and return the structured
     deep-analysis JSON plus the grounding source list.
-
-    Goes through the shared async REST helper — async-native (no event loop
-    blocking) and the only path that supports the modern ``google_search``
-    tool form Gemini 2.5+ requires.
     """
-    # Quota-survival cascade for free-tier keys. The non-Pro Flash variants
-    # each have an INDEPENDENT per-minute RPM counter on the same key, so
-    # when Flash-preview hits 429 we can roll forward to Flash 2.5, then
-    # the lite variants. Pro variants are intentionally NOT in the cascade
-    # — limit=0 on free tier, so attempting them is wasted HTTP latency.
-    #
-    # Order (highest-first, dedup happens inside call_gemini):
-    #   primary                       — operator override (default: 3-flash-preview)
-    #   fallback                      — operator override (default: 2.5-flash)
-    #   gemini-3-flash-lite-preview   — Flash 3 Lite, independent quota
-    #   gemini-2.5-flash-lite         — Flash 2.5 Lite, last-resort quota
-    extras = [
-        "gemini-3-flash-lite-preview",
-        "gemini-2.5-flash-lite",
-    ]
+    # Grounding (google_search) only has quota on the Gemini 2.5 family on this
+    # key — 3.x models hard-429 on grounded calls — so primary/fallback are
+    # 2.5 Flash / 2.5 Flash-Lite (see config.py). No extra rungs needed.
     return await call_gemini(
         primary_model=primary,
         fallback_model=fallback,
-        extra_models=extras,
         system=f"{_ANALYST_SYSTEM}\nResponse locale: {locale}",
         user_prompt=prompt,
         use_search=True,
         response_json=True,
-        # 3072 tokens still leaves room for verdict + 4 blind spots + 3
-        # chronic issues + 3+3 pros/cons + the multi-paragraph final
-        # recommendation. The previous 5120 was over-budgeted — JSON
-        # responses rarely exceeded ~2500 tokens in practice and the
-        # extra ceiling only added latency.
         max_output_tokens=3072,
         temperature=0.2,
         top_p=0.95,
@@ -913,24 +912,11 @@ def _normalize_deep_analysis(
     }
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# Disk-persistent deep-analysis cache.
-#
-# A grounded compare call costs ~60 seconds end-to-end AND consumes Gemini
-# quota — a precious resource on a free-tier key. The verdict, blind spots,
-# chronic issues and pros/cons are STABLE for days (review patterns don't
-# shift overnight), so we cache the full response by canonical product
-# identity and return it instantly on re-analysis within the TTL.
-#
-# Persisting to disk means the cache survives a server restart, so a user
-# who burned their quota yesterday can still see yesterday's analysis today.
-# The in-memory dict is the hot path; the JSON file is the cold backing
-# store, written on every successful analysis and loaded once at boot.
-#
-# Live prices are still refreshed on every cache hit (they come from the
-# lightweight /tracking/check-prices scraper, not from this analysis), so a
-# cached deep_analysis never shows stale price tags to the user.
-# ──────────────────────────────────────────────────────────────────────────
+# Disk-persistent deep-analysis cache. A grounded compare costs ~60s + scarce
+# Gemini quota, but the verdict/blind-spots/issues are stable for days, so we
+# cache the full response by product identity (in-memory hot path + JSON cold
+# store that survives restarts). Live prices are refreshed separately on every
+# cache hit, so a cached entry never shows stale price tags.
 _DEEP_ANALYSIS_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 days
 _CACHE_DIR = Path(__file__).resolve().parent.parent / ".cache"
 _CACHE_FILE = _CACHE_DIR / "compare_analysis.json"
@@ -1013,21 +999,13 @@ def _cache_set(key: str, value: dict[str, Any]) -> None:
 _load_cache_from_disk()
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# Local fallback analysis builder.
-#
-# Used when Gemini is unreachable (quota exhausted, transient outage, parse
-# failure). Produces a defensible report from the scraped data alone using
-# Turkish keyword frequency analysis — never as good as a grounded Gemini
-# response, but always better than showing the user an error toast and
-# nothing else. Critically: it never invents prices or quotes; everything
-# in the fallback report is sourced from data we actually scraped.
-# ──────────────────────────────────────────────────────────────────────────
+# Local fallback analysis builder — used when Gemini is unreachable (quota,
+# outage, parse failure). Builds a defensible report from scraped data alone
+# via Turkish keyword frequency; it never invents prices or quotes.
 
-# Recurring-issue keyword buckets. Lowercase Turkish + English variants —
-# we match substring on a normalised review string. Each bucket fires when
-# AT LEAST 2 reviews mention any of its variants (mirrors the system prompt's
-# "issue must appear in ≥2 reviews" rule so the bar is the same).
+# Recurring-issue keyword buckets (Turkish + English variants, substring-matched
+# on normalised reviews). Each bucket fires only at ≥2 mentions, mirroring the
+# system prompt's "issue must appear in ≥2 reviews" rule.
 _CHRONIC_KEYWORDS: list[tuple[str, str, list[str]]] = [
     ("Isınma sorunu", "high", ["ısınıyor", "ısınma", "aşırı ısın", "overheat", "çok ısın"]),
     ("Pil ömrü zayıf", "high", ["pil ömrü", "pil çok", "şarj bitiyor", "battery", "şarj tutmuyor", "pil hızlı bit"]),
@@ -1269,21 +1247,11 @@ def _build_local_fallback_analysis(
 
 
 async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
-    """
-    Run the full Analyst Agent pipeline:
-      1. Concurrently scrape every supplied product link (JSON-LD + regex
-         fallback + anti-bot mock fallback).
-      2. Aggregate scraped reviews and spec data.
-      3. Ask Gemini (Analyst Model) for a STRUCTURED JSON report focused on
-         blind spots, chronic issues, trust score, and an honest pros/cons
-         balance.
+    """Scrape every product link, aggregate reviews/specs, then ask Gemini for a
+    grounded structured report (blind spots, chronic issues, trust score, honest
+    pros/cons). Cached by product-URL-set + locale for the TTL above.
 
-    Results are cached for 6 hours keyed by product URL set + locale, so
-    re-running the analyst on the same product returns instantly without
-    re-spending Gemini quota.
-
-    Returns a dict with keys:
-        deep_analysis, lowest_price, lowest_price_site, store_prices, model_used.
+    Returns: deep_analysis, lowest_price, lowest_price_site, store_prices, model_used.
     """
     valid_products = [
         product
