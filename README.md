@@ -46,36 +46,6 @@ At the core of the system are specialized AI agents for specific tasks, coordina
 **Database & Storage:**
 - **Supabase:** Secure and persistent storage of user data, product histories, logs, and agent results.
 
----
-
-## 📁 Project Structure
-
-The project is divided into two main directories: frontend and backend.
-
-```text
-e_commerce-agents/
-│
-├── backend/                  # Python FastAPI Server
-│   ├── agents/               # AI Agents (Vision, Analyst, etc.)
-│   ├── routes/               # API Endpoints
-│   ├── services/             # Database and external service integrations
-│   ├── models/               # Pydantic Data Models
-│   ├── main.py               # FastAPI application entry point
-│   └── config.py             # Environment variables and configurations
-│
-├── src/                      # React Frontend Source Code
-│   ├── components/           # Reusable UI components (ChatWidget, Cards, etc.)
-│   ├── data/                 # Mock data or initial seeds
-│   ├── lib/                  # Helper libraries
-│   ├── services/             # Service functions to communicate with the backend
-│   ├── App.jsx               # Main application component
-│   └── index.css             # Tailwind configurations and global styles
-│
-├── package.json              # Frontend dependencies
-└── tailwind.config.js        # Tailwind styling configurations
-```
-
----
 
 ## 🚀 Installation and Setup
 
