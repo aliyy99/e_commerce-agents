@@ -30,12 +30,19 @@ class Settings:
     #   • Non-grounded generation (Analyst report, Chat, Vision) runs on the
     #     Gemini 3 Flash family — gemini-3.5-flash is the highest Flash tier
     #     that returns clean output on this key.
-    #   • Grounded generation (Compare, Compare-devices, Price-history) MUST
-    #     use the Gemini 2.5 Flash family: the google_search tool has zero
-    #     free-tier quota on every Gemini 3.x model (hard 429), while 2.5
-    #     Flash / 2.5 Flash-Lite still ground normally. Leading grounded
-    #     calls with a 3.x model would 429 on every request before falling
-    #     through, so those defaults point straight at 2.5 Flash.
+    #   • Grounded generation (multi-site Compare, Price-history) MUST use the
+    #     Gemini 2.5 Flash family: the google_search tool has zero free-tier
+    #     quota on every Gemini 3.x model (hard 429), while 2.5 Flash / 2.5
+    #     Flash-Lite still ground normally. Leading grounded calls with a 3.x
+    #     model would 429 on every request before falling through, so those
+    #     defaults point straight at 2.5 Flash.
+    #   • Device-compare (/compare-devices) is the exception: it runs the
+    #     Gemini 3.5 Flash family UNGROUNDED (use_search=False). A device
+    #     spec-vs-spec verdict needs the model's own product knowledge, not a
+    #     live web fetch (the frontend never renders grounding sources here),
+    #     and dropping google_search is exactly what lets a 3.x model serve as
+    #     primary without the grounded-quota 429. thinkingLevel=low keeps that
+    #     reasoning model fast on what is really a structured-JSON extraction.
     # Each *_FALLBACK_MODEL sits on an independent quota counter so a
     # per-minute limit on the primary doesn't sink the whole call.
     FLASH_MODEL = os.getenv("FLASH_MODEL", "gemini-3.5-flash")
@@ -45,6 +52,11 @@ class Settings:
     COMPARE_FALLBACK_MODEL = os.getenv("COMPARE_FALLBACK_MODEL", "gemini-2.5-flash-lite")
     ANALYST_MODEL = os.getenv("ANALYST_MODEL", "gemini-2.5-flash")
     ANALYST_FALLBACK_MODEL = os.getenv("ANALYST_FALLBACK_MODEL", "gemini-2.5-flash-lite")
+    # Device-compare runs ungrounded, so it can lead with Gemini 3.5 Flash and
+    # keep a 2.5 Flash fallback on an independent quota counter. (Kept separate
+    # from ANALYST_MODEL, which still drives the grounded multi-site agent.)
+    COMPARE_DEVICES_MODEL = os.getenv("COMPARE_DEVICES_MODEL", "gemini-3.5-flash")
+    COMPARE_DEVICES_FALLBACK_MODEL = os.getenv("COMPARE_DEVICES_FALLBACK_MODEL", "gemini-2.5-flash")
     VISION_MODEL = os.getenv("VISION_MODEL", "gemini-3.5-flash")
     VISION_FALLBACK_MODEL = os.getenv("VISION_FALLBACK_MODEL", "gemini-2.5-flash")
     CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.5-flash")

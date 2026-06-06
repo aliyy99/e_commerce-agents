@@ -112,20 +112,17 @@ Hard rules:
 - Output ONLY a single valid JSON object that matches the supplied schema —
   no markdown fences, no prose around it.
 
-GROUNDING — MANDATORY:
-The Google Search tool is ALWAYS available. Before producing the JSON, you
-MUST search to cross-validate the supplied specs and pull in the latest
-expert head-to-head comparison data. Run AT LEAST these queries:
-  • "<device A name> vs <device B name>" comparison / karşılaştırma
-  • "<device A name> specs" and "<device B name> specs"
-  • "<device A name> review" and "<device B name> review"
-Use the searched data to:
-  - correct any obviously stale or incomplete specs in the input
-  - cite real-world performance differences experts found
-  - mention any newer model on the horizon if it materially affects "wait
-    vs buy" timing
-Never invent figures — if a fact isn't in the input AND not in search
-results, omit it.
+KNOWLEDGE SOURCE:
+You do NOT have a live web-search tool on this call. Rely on (1) the supplied
+specs as the source of truth for numeric facts, and (2) your own up-to-date
+product knowledge of these specific models to:
+  - fill gaps where a spec is missing or unclear
+  - cite the real-world performance differences expert reviewers report
+  - mention a newer model on the horizon if it materially affects "wait vs
+    buy" timing
+Never invent figures — if a fact isn't in the supplied specs AND you are not
+confident of it from your own knowledge of the model, omit it rather than
+guess.
 
 Write all human-readable text in the requested locale.
 """.strip()
@@ -294,10 +291,16 @@ async def compare_devices(body: CompareDevicesRequest) -> CompareDevicesResponse
 
     prompt = _build_prompt(body)
 
-    # Grounded call → Gemini 2.5 Flash family (the only tier with google_search
-    # quota on this key), 2.5 Flash-Lite in reserve on an independent counter.
-    primary = getattr(settings, "ANALYST_MODEL", None) or "gemini-2.5-flash"
-    fallback = getattr(settings, "ANALYST_FALLBACK_MODEL", None) or "gemini-2.5-flash-lite"
+    # UNGROUNDED call → Gemini 3.5 Flash primary, 2.5 Flash fallback on an
+    # independent quota counter. We deliberately skip google_search here: it
+    # has zero free-tier quota on every Gemini 3.x model (instant 429), and a
+    # spec-vs-spec device verdict leans on the model's own product knowledge,
+    # not a live web fetch — the frontend never renders grounding sources for
+    # this page. thinking_level="low" keeps the 3.x reasoning model fast on
+    # what is really a structured-JSON extraction (3.x-only; the 2.5 fallback
+    # transparently ignores it).
+    primary = getattr(settings, "COMPARE_DEVICES_MODEL", None) or "gemini-3.5-flash"
+    fallback = getattr(settings, "COMPARE_DEVICES_FALLBACK_MODEL", None) or "gemini-2.5-flash"
 
     try:
         grounded = await call_gemini(
@@ -305,14 +308,16 @@ async def compare_devices(body: CompareDevicesRequest) -> CompareDevicesResponse
             fallback_model=fallback,
             system=_COMPARE_SYSTEM,
             user_prompt=prompt,
-            use_search=True,
+            use_search=False,
             response_json=True,
             # 8-10 groups × ~5 rows × evidence + a multi-paragraph summary can
-            # exceed 8k tokens; 16k leaves headroom for cross-category mixes.
+            # exceed 8k tokens; 16k leaves headroom for cross-category mixes
+            # plus the 3.x thinking pass.
             max_output_tokens=16384,
             temperature=0.3,
             top_p=0.95,
             timeout_seconds=150.0,
+            thinking_level="low",
         )
     except GeminiAuthError as auth_err:
         logger.error("Compare-devices auth error: %s", auth_err)

@@ -38,6 +38,16 @@ _DEFAULT_SAFETY = [
     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
 ]
 
+def _supports_thinking_level(model_name: str) -> bool:
+    """``thinkingLevel`` is a Gemini 3.x knob. The 2.5 family hard-rejects it
+    with HTTP 400 "Thinking level is not supported for this model.", so a
+    cascade that falls back from a 3.x primary to a 2.5 model must attach the
+    param ONLY while the active model is a Gemini 3 member.
+    """
+    name = (model_name or "").lower()
+    return name.startswith("gemini-3") or name.startswith("models/gemini-3")
+
+
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
 _TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
 # JSON spec allows exactly these chars after a backslash. Anything else inside
@@ -254,6 +264,7 @@ async def _call_once(
     max_output_tokens: int,
     temperature: float,
     top_p: float,
+    thinking_level: Optional[str] = None,
 ) -> GroundedResult:
     """Single REST roundtrip — surfaces detailed diagnostics on failure."""
     api_key = get_gemini_api_key()
@@ -269,6 +280,14 @@ async def _call_once(
             "maxOutputTokens": max_output_tokens,
         },
     }
+    # Gemini 3.x reasoning models spend part of the output-token budget on an
+    # internal "thinking" pass before the answer. For a structured JSON
+    # extraction that reasoning is mostly wasted latency (and can starve the
+    # JSON of tokens at small budgets), so callers can pin a lower level.
+    # Attached 3.x-only — see _supports_thinking_level — so it stays safe when
+    # the cascade falls back to a 2.5 model that rejects the param.
+    if thinking_level and _supports_thinking_level(model_name):
+        body["generationConfig"]["thinkingConfig"] = {"thinkingLevel": thinking_level}
     if use_search:
         body["tools"] = [{"google_search": {}}]
     # IMPORTANT: when tools=[google_search] is set, Gemini 3 Flash Preview
@@ -349,6 +368,7 @@ async def call_gemini(
     temperature: float = 0.3,
     top_p: float = 0.95,
     timeout_seconds: float = 90.0,
+    thinking_level: Optional[str] = None,
 ) -> GroundedResult:
     """
     Multi-tier async Gemini call. Tries ``primary_model`` first; on transient
@@ -390,6 +410,7 @@ async def call_gemini(
                         max_output_tokens=max_output_tokens,
                         temperature=temperature,
                         top_p=top_p,
+                        thinking_level=thinking_level,
                     )
                     if idx > 0 or attempt > 0:
                         logger.warning(
