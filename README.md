@@ -95,6 +95,7 @@ npm run dev
 
 You can start using the application by navigating to `http://localhost:5173` (or the port provided by Vite) in your browser! 🎉
 
+Notes: The products shown in the web application are examples. Not all products have been included.
 ---
 
 ## 🤝 Contributing
