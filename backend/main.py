@@ -35,10 +35,10 @@ app = FastAPI(
     description=(
         "A high-performance, async FastAPI backend powering the Techno Track dashboard. "
         "Orchestrates specialized AI agents:\n\n"
-        "- **Vision Agent** (Gemini 3 Flash → Gemini 2.5 Flash fallback) – product identification from images\n"
-        "- **Detective Agent** – search execution and review scraping\n"
-        "- **Analyst Agent** (Gemini 2.5 Flash) – review analysis & buy/wait strategy\n"
-        "- **Visualizer Agent** (Imagen 3) – outfit & room placement generation\n\n"
+        f"- **Vision Agent** ({settings.VISION_MODEL} → fallbacks) – product identification from images\n"
+        f"- **Detective Agent** ({settings.DETECTIVE_MODEL}) – live marketplace search and review scraping\n"
+        f"- **Compare / Analyst Agents** ({settings.ANALYST_MODEL}) – review analysis & buy/wait strategy\n"
+        f"- **Visualizer Agent** ({settings.IMAGE_MODEL}, billed key only) – outfit & room placement generation\n\n"
         "All endpoints are validated with Pydantic v2. Results are persisted in Supabase."
     ),
     version="1.0.0",

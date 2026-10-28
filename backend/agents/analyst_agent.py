@@ -1,6 +1,6 @@
 """Analyst Agent — non-grounded review + price-history intelligence.
 
-Ingests scraped reviews and price history, then asks Gemini (``settings.PRO_MODEL``)
+Ingests scraped reviews and price history, then asks Gemini (``settings.ANALYST_MODEL``)
 for a structured JSON verdict: fake-review estimate, chronic issues, sentiment
 map, red flags and a buy/wait/avoid recommendation. The model call, JSON repair
 and quota cascade live in ``services.gemini_grounded.call_gemini``.
@@ -96,7 +96,7 @@ async def _call_pro_analyst(
     price_history: List[PricePoint],
     locale: str,
 ) -> tuple[dict, str]:
-    """Send all reviews + price history to ``settings.PRO_MODEL`` in one prompt
+    """Send all reviews + price history to ``settings.ANALYST_MODEL`` in one prompt
     and return ``(parsed_json, model_used)``.
     """
     # Cap at 500 reviews × 400 chars so the prompt stays well under the
@@ -105,7 +105,7 @@ async def _call_pro_analyst(
         f"[{i+1}] {r[:400]}" for i, r in enumerate(reviews[:500])
     )
     price_block = "\n".join(
-        f"{p.date} | {p.store} | ${p.price:.2f}" for p in price_history
+        f"{p.date} | {p.store} | {p.price:.2f}" for p in price_history
     )
     prompt = _ANALYST_PROMPT.format(
         product_name=product_name,
@@ -114,22 +114,18 @@ async def _call_pro_analyst(
         price_history_block=price_block,
     )
 
-    # Deep rung on an independent quota counter; this call is non-grounded so
-    # the lite tier is safe to use.
-    extras = ["gemini-2.5-flash-lite"]
     result = await call_gemini(
-        primary_model=settings.PRO_MODEL,
-        fallback_model=settings.PRO_FALLBACK_MODEL,
-        extra_models=extras,
+        primary_model=settings.ANALYST_MODEL,
+        fallback_model=settings.ANALYST_FALLBACK_MODEL,
         system=_ANALYST_SYSTEM.format(locale=locale),
         user_prompt=prompt,
         use_search=False,
         response_json=True,
         # Headroom for Gemini 3's thinking tokens + the full JSON report.
-        max_output_tokens=3072,
+        max_output_tokens=8192,
         temperature=0.2,
         top_p=0.95,
-        timeout_seconds=45.0,
+        timeout_seconds=90.0,
     )
     if result.parsed is None:
         raise RuntimeError("Analyst model returned a non-JSON payload.")
@@ -147,7 +143,7 @@ async def run_analyst_agent(request: AnalystRequest, emit_status=None) -> Analys
     )
 
     if emit_status:
-        await emit_status(f"Analyst Agent interpreting data ({settings.PRO_MODEL})...")
+        await emit_status(f"Analyst Agent interpreting data ({settings.ANALYST_MODEL})...")
 
     price_trend = _compute_price_trend(request.price_history)
 

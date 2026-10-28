@@ -76,6 +76,26 @@ Operating principles:
    broken", "warranty void on arrival" — anything that should make the buyer
    hesitate.
 
+{evidence_rules}
+
+JSON STRING HYGIENE — non-negotiable, the response is machine-parsed:
+- Inside any string value, the backslash character is RESERVED. Use it ONLY
+  for these standard JSON escapes (shown in plain text, two characters each):
+  backslash-quote, backslash-backslash, backslash-slash, backslash-b,
+  backslash-f, backslash-n, backslash-r, backslash-t, and the unicode form
+  backslash-u followed by exactly four hex digits.
+- NEVER place a backslash before any other letter or character — Turkish
+  letters like "ı", path-like tokens like "share-button", or random words
+  must appear WITHOUT a preceding backslash.
+- Strings MUST be on a single logical line; replace real newlines inside a
+  value with a backslash-n escape sequence. Never paste a literal tab.
+- Quotes inside a string value MUST be escaped (backslash before the quote).
+  Do not use smart/curly quotes to "work around" this.
+- The response MUST start with `{{` and end with `}}` — no UTF-8 BOM, no
+  leading whitespace, no trailing text after the closing brace.
+""".strip()
+
+_GROUNDED_EVIDENCE_RULES = """
 GROUNDING — MANDATORY:
 The Google Search tool is ALWAYS available. Before producing the JSON, you
 MUST run AT LEAST these searches and weave the findings into your analysis:
@@ -108,26 +128,45 @@ Hard constraints:
 - All human-readable strings must be in the requested locale.
 - Keep evidence quotes ≤ 120 characters and verbatim (you may translate to
   the response locale, preserving meaning).
+""".strip()
 
-JSON STRING HYGIENE — non-negotiable, the response is machine-parsed:
-- Inside any string value, the backslash character is RESERVED. Use it ONLY
-  for these standard JSON escapes (shown in plain text, two characters each):
-  backslash-quote, backslash-backslash, backslash-slash, backslash-b,
-  backslash-f, backslash-n, backslash-r, backslash-t, and the unicode form
-  backslash-u followed by exactly four hex digits.
-- NEVER place a backslash before any other letter or character — Turkish
-  letters like "ı", path-like tokens like "share-button", or random words
-  must appear WITHOUT a preceding backslash.
-- Strings MUST be on a single logical line; replace real newlines inside a
-  value with a backslash-n escape sequence. Never paste a literal tab.
-- Quotes inside a string value MUST be escaped (backslash before the quote).
-  Do not use smart/curly quotes to "work around" this.
-- The response MUST start with `{` and end with `}` — no UTF-8 BOM, no
-  leading whitespace, no trailing text after the closing brace.
+_OFFLINE_EVIDENCE_RULES = """
+EVIDENCE — NO LIVE WEB SEARCH:
+You have NO web-search tool in this run. Your evidence is (a) the scraped
+store data supplied below and (b) your own well-established product
+knowledge (spec sheets, widely reported expert-review consensus).
+
+Hard constraints:
+- PRICES, RATINGS and REVIEW COUNTS come ONLY from the scraped data. If a
+  site's scraped price is missing or "not found", set that site's price to
+  null. NEVER estimate or recall a price from memory — prices change daily.
+- Review quotes and chronic-issue frequencies come ONLY from scraped
+  reviews. When there are too few reviews for a pattern, leave
+  chronic_issues empty rather than inventing complaints.
+- blind_spots MAY draw on established expert consensus; mark those entries
+  with source "expert_consensus" (or "spec_sheet"), never "reviews".
+- Base trust_report only on the reviews you were given; if you saw none,
+  set total_reviews_seen to 0 and say so in suspicious_signals.
+- Respond with a SINGLE valid JSON object matching the schema exactly. No
+  markdown fences, no commentary, no leading/trailing prose.
+- All human-readable strings must be in the requested locale.
+- Keep evidence quotes ≤ 120 characters and verbatim (you may translate to
+  the response locale, preserving meaning).
 """.strip()
 
 
-def _build_analyst_prompt(scraped: list[dict[str, Any]], locale: str, product_hint: str | None = None) -> str:
+def _analyst_system(locale: str, *, grounded: bool) -> str:
+    rules = _GROUNDED_EVIDENCE_RULES if grounded else _OFFLINE_EVIDENCE_RULES
+    return _ANALYST_SYSTEM.format(evidence_rules=rules) + f"\nResponse locale: {locale}"
+
+
+def _build_analyst_prompt(
+    scraped: list[dict[str, Any]],
+    locale: str,
+    product_hint: str | None = None,
+    *,
+    grounded: bool = True,
+) -> str:
     schema = {
         "verdict": "BUY | WAIT | AVOID",
         "confidence": "0.0–1.0 (your own confidence in this verdict)",
@@ -210,11 +249,51 @@ def _build_analyst_prompt(scraped: list[dict[str, Any]], locale: str, product_hi
     for item in scraped:
         line = f"  - {item.get('site') or 'Unknown'}: {item.get('url')}"
         if item.get("source_status") == "fetch_error":
-            line += "  [scrape blocked → MUST resolve price via Google Search]"
+            line += (
+                "  [scrape blocked → MUST resolve price via Google Search]" if grounded
+                else "  [scrape blocked → price unknown, report null]"
+            )
         elif item in sites_blocked:
-            line += "  [scrape returned no price/rating → MUST resolve via Google Search]"
+            line += (
+                "  [scrape returned no price/rating → MUST resolve via Google Search]" if grounded
+                else "  [scrape returned no price/rating → report null]"
+            )
         site_directory_lines.append(line)
     site_directory = "\n".join(site_directory_lines)
+
+    if not grounded:
+        return f"""
+You are analysing this product: "{product_label}".
+
+It is sold on the following Turkish e-commerce sites (live web search is NOT
+available in this run — use only the scraped data for prices and reviews):
+
+{site_directory}
+
+Scraped data for each site:
+
+{json.dumps(scraped, ensure_ascii=False, indent=2)}
+
+Total reviews captured via scraping: {total_scraped_reviews}.
+
+Return a SINGLE JSON object matching this schema exactly:
+
+{json.dumps(schema, ensure_ascii=False, indent=2)}
+
+Output requirements:
+- Exactly 3 honest_pros and exactly 3 honest_cons. No more, no fewer. Use
+  review quotes as evidence when available; otherwise cite the spec sheet.
+- chronic_issues: only patterns that appear in ≥2 scraped reviews, sorted by
+  frequency desc. An empty list is correct when the reviews show none.
+- blind_spots: 2-5 entries. Each must contrast marketing vs reality.
+- trust_report.total_reviews_seen MUST equal {total_scraped_reviews}.
+  organic_pct + suspicious_pct must equal 100.
+- site_summaries: one entry per site above. price / rating / review_count
+  are copied from the scraped data, or null when it has none.
+- cheapest_site / cheapest_price: only from scraped prices, else null.
+- red_flags: empty list is fine — only include if there is direct evidence.
+- Locale for all strings: {locale}
+""".strip()
 
     return f"""
 You are analysing this product: "{product_label}".
@@ -313,7 +392,9 @@ def _parse_json_ld_blocks(html_text: str) -> list[Any]:
         if cleaned.endswith(";"):
             cleaned = cleaned[:-1]
         try:
-            blocks.append(json.loads(cleaned))
+            # strict=False: stores (e.g. Vatan) leave raw control characters
+            # inside review texts, which strict parsing rejects wholesale.
+            blocks.append(json.loads(cleaned, strict=False))
         except json.JSONDecodeError:
             continue
     return blocks
@@ -570,25 +651,33 @@ async def _scrape_site_data(products: list[CompareSiteData]) -> list[dict[str, A
 
 
 async def _generate_deep_analysis(
-    primary: str, fallback: str, prompt: str, locale: str
+    primary: str,
+    fallback: str,
+    prompt: str,
+    offline_prompt: str,
+    locale: str,
 ) -> GroundedResult:
-    """Call Gemini with Google Search grounding and return the structured
-    deep-analysis JSON plus the grounding source list.
+    """Ask Gemini for the structured deep-analysis JSON.
+
+    Grounded with Google Search when the key allows it (sources are returned
+    for the UI); otherwise the same model runs on ``offline_prompt``, which
+    restricts prices and reviews to the scraped data.
     """
-    # Grounding (google_search) only has quota on the Gemini 2.5 family on this
-    # key — 3.x models hard-429 on grounded calls — so primary/fallback are
-    # 2.5 Flash / 2.5 Flash-Lite (see config.py). No extra rungs needed.
     return await call_gemini(
         primary_model=primary,
         fallback_model=fallback,
-        system=f"{_ANALYST_SYSTEM}\nResponse locale: {locale}",
+        system=_analyst_system(locale, grounded=True),
         user_prompt=prompt,
+        offline_system=_analyst_system(locale, grounded=False),
+        offline_prompt=offline_prompt,
         use_search=True,
         response_json=True,
-        max_output_tokens=3072,
+        # Headroom for the 3.x thinking pass plus the full report JSON.
+        max_output_tokens=12288,
         temperature=0.2,
         top_p=0.95,
-        timeout_seconds=45.0,
+        timeout_seconds=120.0,
+        thinking_level="low",
     )
 
 
@@ -1281,11 +1370,8 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
     logger.info("CompareAgent -> scraping done (ok=%d/%d)", ok_count, len(scraped))
     # Even when every site blocked the scraper (anti-bot WAFs on Hepsiburada /
     # Trendyol can return 403/empty pages), we still hand the supplied URLs to
-    # Gemini and lean on Google Search grounding for live prices and reviews.
-    # The system prompt instructs the model to search "<product> fiyat <site>"
-    # for every site whose scrape came back empty, so the user sees real
-    # data instead of a hard error — which previously happened whenever the
-    # underlying anti-bot kicked in.
+    # Gemini. With Google Search grounding it looks the missing prices up;
+    # without it (free tier) those prices stay null instead of being guessed.
 
     store_prices = _collect_store_prices(scraped)
     store_prices, dropped_scraped = _reject_price_outliers(store_prices)
@@ -1320,18 +1406,16 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
         None,
     )
     prompt = _build_analyst_prompt(payload, request.locale, product_hint=product_hint)
+    offline_prompt = _build_analyst_prompt(payload, request.locale, product_hint=product_hint, grounded=False)
 
-    # Primary: Analyst model (Gemini 3 Pro when paid, else Gemini 3 Flash).
-    # Fallback: independent Flash-family member so transient errors on one
-    # don't fail the whole call.
-    analyst_primary = getattr(settings, "ANALYST_MODEL", None) or settings.COMPARE_MODEL
-    analyst_fallback = getattr(settings, "ANALYST_FALLBACK_MODEL", None) or settings.COMPARE_FALLBACK_MODEL
+    analyst_primary = settings.ANALYST_MODEL
+    analyst_fallback = settings.ANALYST_FALLBACK_MODEL
 
     grounded: GroundedResult | None = None
     fallback_reason: str | None = None
     try:
         grounded = await _generate_deep_analysis(
-            analyst_primary, analyst_fallback, prompt, request.locale,
+            analyst_primary, analyst_fallback, prompt, offline_prompt, request.locale,
         )
         if grounded.parsed is None:
             # Model returned text without a parseable JSON object. Treat as
@@ -1394,6 +1478,21 @@ async def run_compare_agent(request: CompareRequest) -> dict[str, Any]:
             "CompareAgent -> grounded with %d sources (model=%s)",
             len(grounded.sources), grounded.model_used,
         )
+
+    if not grounded.search_used:
+        # Ungrounded run: a price in site_summaries can only be the model's
+        # memory, which is stale by definition. Pin every summary to the
+        # scraped price for its URL (or null) so nothing invented reaches
+        # the UI or the lowest-price widget.
+        scraped_by_url = {
+            item.get("url"): _parse_price_to_float(item.get("price"))
+            for item in scraped
+        }
+        for summary in deep_analysis.get("site_summaries") or []:
+            if isinstance(summary, dict):
+                summary["price"] = scraped_by_url.get(summary.get("url"))
+        deep_analysis["cheapest_site"] = lowest_price_site
+        deep_analysis["cheapest_price"] = lowest_price
 
     # When scraping was blocked on every site, Gemini's site_summaries are the
     # only source of truth for prices. Merge them into store_prices / lowest_*

@@ -268,7 +268,7 @@ const Campaigns = ({ onDataLoaded }) => {
           {generatedAt && (
             <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-primary" />
-              {grounded ? 'From the web' : 'AI summary'} · {generatedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              {grounded ? 'From the web' : 'Live news feeds · AI summary'} · {generatedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           <button

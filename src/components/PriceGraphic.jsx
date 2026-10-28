@@ -148,7 +148,7 @@ const PriceGraphic = ({
                 </div>
                 <h3 className="text-2xl font-display font-black text-slate-900 mb-2">Comprehensive Price Analysis</h3>
                 <p className="text-sm text-slate-500 max-w-md text-center leading-relaxed">
-                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, powered by AI and live web search data.
+                  Click <strong className="text-slate-700">Analyze</strong> to generate a 12-month price chart for this product, anchored to today's live store prices.
                 </p>
               </div>
             )}
@@ -171,6 +171,11 @@ const PriceGraphic = ({
               <>
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
                   <PriceChart points={selectedReport.points} currency={selectedReport.currency} />
+                  {selectedReport.grounded === false && (
+                    <p className="mt-3 text-xs text-slate-500">
+                      Earlier months are AI estimates (live web search is unavailable on the free Gemini tier). The latest month is today's live store price when one was found.
+                    </p>
+                  )}
                 </div>
 
                 {selectedReport.sources?.length > 0 && (

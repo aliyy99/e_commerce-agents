@@ -1,12 +1,11 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║         VISUALIZER AGENT  –  Imagen 3 (Google AI)           ║
+║   VISUALIZER AGENT  –  Gemini native image generation        ║
 ╠══════════════════════════════════════════════════════════════╣
-║  WHY IMAGEN 3?                                               ║
-║  ▸ State-of-the-art photorealistic image synthesis           ║
-║  ▸ Understands spatial context: furniture layout, fashion    ║
-║    outfit combinations, color harmony                        ║
-║  ▸ Supports negative prompting for clean, ad-free outputs   ║
+║  MODEL: IMAGE_MODEL ("Nano Banana" family) with              ║
+║  IMAGE_FALLBACK_MODEL. Image models have NO free-tier quota  ║
+║  — this agent needs a billed Gemini key and otherwise        ║
+║  returns a clear ERROR response.                             ║
 ║                                                              ║
 ║  TRIGGER CONDITIONS:                                         ║
 ║  ▸ Category == "fashion"   → outfit combination image        ║
@@ -18,19 +17,53 @@ from __future__ import annotations
 import base64
 import logging
 
-import google.generativeai as genai
+import httpx
 
-from ..config import settings
+from ..config import get_gemini_api_key, settings
 from ..db import save_generated_image
 from ..models.requests import StyleRequest, ProductCategory
 from ..models.responses import StyleResponse, AgentStatus
 from ..services.gemini_client import (
     GeminiAuthError,
-    configure_gemini_client,
     raise_if_auth_error,
 )
 
 logger = logging.getLogger("technotrack.visualizer_agent")
+
+_REST_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+
+async def _generate_image(prompt: str) -> tuple[bytes, str, str]:
+    """Return (image_bytes, mime_type, model_used), trying IMAGE_MODEL first."""
+    api_key = get_gemini_api_key(reload=True)
+    body = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+    }
+    errors: list[str] = []
+    models = list(dict.fromkeys(m for m in (settings.IMAGE_MODEL, settings.IMAGE_FALLBACK_MODEL) if m))
+    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
+        for model in models:
+            resp = await client.post(
+                f"{_REST_BASE}/{model}:generateContent",
+                json=body,
+                headers={"x-goog-api-key": api_key},
+            )
+            if resp.status_code != 200:
+                snippet = resp.text[:300]
+                raise_if_auth_error(RuntimeError(snippet))
+                if resp.status_code == 429 and "FreeTier" in resp.text:
+                    errors.append(f"{model}: image generation has no free-tier quota (billing required)")
+                else:
+                    errors.append(f"{model}: HTTP {resp.status_code} {snippet[:120]}")
+                continue
+            parts = ((resp.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
+            for part in parts:
+                inline = part.get("inlineData")
+                if inline and inline.get("data"):
+                    return base64.b64decode(inline["data"]), inline.get("mimeType") or "image/png", model
+            errors.append(f"{model}: response contained no image")
+    raise RuntimeError("Image generation failed. " + " | ".join(errors))
 
 # ─────────────────────────────────────────────────────────────
 # Prompt templates per category
@@ -68,7 +101,7 @@ def _build_prompt(request: StyleRequest) -> str:
 # ─────────────────────────────────────────────────────────────
 async def run_visualizer_agent(request: StyleRequest) -> StyleResponse:
     """
-    AGENT: Visualizer Agent  (Imagen 3 via Google AI SDK)
+    AGENT: Visualizer Agent  (Gemini native image generation via REST)
     ─────────────────────────────────────────────────────
     Generates a contextual product image:
       • Fashion → editorial outfit combo photo
@@ -92,22 +125,7 @@ async def run_visualizer_agent(request: StyleRequest) -> StyleResponse:
     logger.debug("Visualizer prompt: %s", prompt[:120])
 
     try:
-        configure_gemini_client()
-        # WHY IMAGEN 3: Photorealistic synthesis with spatial awareness.
-        # The model understands fashion styling and interior design natively.
-        imagen = genai.ImageGenerationModel(settings.IMAGE_MODEL)
-        try:
-            result = imagen.generate_images(
-                prompt=prompt,
-                number_of_images=1,
-                safety_filter_level="block_only_high",
-                person_generation="dont_allow",
-            )
-        except Exception as err:
-            raise_if_auth_error(err)
-            raise
-
-        image_bytes: bytes = result.images[0]._image_bytes
+        image_bytes, _mime, model_used = await _generate_image(prompt)
 
         # ── Try to upload to Supabase Storage ────────────────
         try:
@@ -116,6 +134,7 @@ async def run_visualizer_agent(request: StyleRequest) -> StyleResponse:
                 status=AgentStatus.SUCCESS,
                 image_url=public_url,
                 prompt_used=prompt,
+                model_used=model_used,
             )
         except Exception as upload_err:
             # Storage upload failed → return Base64 inline
@@ -125,6 +144,7 @@ async def run_visualizer_agent(request: StyleRequest) -> StyleResponse:
                 status=AgentStatus.FALLBACK,
                 image_base64=b64,
                 prompt_used=prompt,
+                model_used=model_used,
                 error_detail=f"Storage upload failed: {upload_err}",
             )
 

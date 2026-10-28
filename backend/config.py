@@ -21,49 +21,55 @@ def reload_env() -> None:
     """
     load_dotenv(_ENV_PATH, override=True)
 
+def _env_list(name: str, default: str) -> list[str]:
+    """Comma-separated env var → list of non-empty, stripped model names."""
+    return [m.strip() for m in os.getenv(name, default).split(",") if m.strip()]
+
+
 class Settings:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
     # Model names (env-overridable defaults).
     #
-    # Two families are split by capability on the current key:
-    #   • Non-grounded generation (Analyst report, Chat, Vision) runs on the
-    #     Gemini 3 Flash family — gemini-3.5-flash is the highest Flash tier
-    #     that returns clean output on this key.
-    #   • Grounded generation (multi-site Compare, Price-history) MUST use the
-    #     Gemini 2.5 Flash family: the google_search tool has zero free-tier
-    #     quota on every Gemini 3.x model (hard 429), while 2.5 Flash / 2.5
-    #     Flash-Lite still ground normally. Leading grounded calls with a 3.x
-    #     model would 429 on every request before falling through, so those
-    #     defaults point straight at 2.5 Flash.
-    #   • Device-compare (/compare-devices) is the exception: it runs the
-    #     Gemini 3.5 Flash family UNGROUNDED (use_search=False). A device
-    #     spec-vs-spec verdict needs the model's own product knowledge, not a
-    #     live web fetch (the frontend never renders grounding sources here),
-    #     and dropping google_search is exactly what lets a 3.x model serve as
-    #     primary without the grounded-quota 429. thinkingLevel=low keeps that
-    #     reasoning model fast on what is really a structured-JSON extraction.
-    # Each *_FALLBACK_MODEL sits on an independent quota counter so a
-    # per-minute limit on the primary doesn't sink the whole call.
-    FLASH_MODEL = os.getenv("FLASH_MODEL", "gemini-3.5-flash")
-    PRO_MODEL = os.getenv("PRO_MODEL", "gemini-3.5-flash")
-    PRO_FALLBACK_MODEL = os.getenv("PRO_FALLBACK_MODEL", "gemini-2.5-flash")
-    COMPARE_MODEL = os.getenv("COMPARE_MODEL", "gemini-2.5-flash")
-    COMPARE_FALLBACK_MODEL = os.getenv("COMPARE_FALLBACK_MODEL", "gemini-2.5-flash-lite")
-    ANALYST_MODEL = os.getenv("ANALYST_MODEL", "gemini-2.5-flash")
-    ANALYST_FALLBACK_MODEL = os.getenv("ANALYST_FALLBACK_MODEL", "gemini-2.5-flash-lite")
-    # Device-compare runs ungrounded, so it can lead with Gemini 3.5 Flash and
-    # keep a 2.5 Flash fallback on an independent quota counter. (Kept separate
-    # from ANALYST_MODEL, which still drives the grounded multi-site agent.)
-    COMPARE_DEVICES_MODEL = os.getenv("COMPARE_DEVICES_MODEL", "gemini-3.5-flash")
-    COMPARE_DEVICES_FALLBACK_MODEL = os.getenv("COMPARE_DEVICES_FALLBACK_MODEL", "gemini-2.5-flash")
-    VISION_MODEL = os.getenv("VISION_MODEL", "gemini-3.5-flash")
-    VISION_FALLBACK_MODEL = os.getenv("VISION_FALLBACK_MODEL", "gemini-2.5-flash")
-    CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.5-flash")
-    CHAT_FALLBACK_MODEL = os.getenv("CHAT_FALLBACK_MODEL", "gemini-2.5-flash-lite")
-    PRICE_HISTORY_MODEL = os.getenv("PRICE_HISTORY_MODEL", "gemini-2.5-flash")
-    PRICE_HISTORY_FALLBACK_MODEL = os.getenv("PRICE_HISTORY_FALLBACK_MODEL", "gemini-2.5-flash-lite")
-    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "imagen-3.0-generate-002")
+    # Free-tier ladder, verified against the Gemini API on 2026-10-28:
+    #   1. gemini-3.8-flash  — strongest model with free-tier quota, but only
+    #      20 requests/day (shared with gemini-3.7-flash) and frequent 503
+    #      "high demand" responses.
+    #   2. gemini-3.6-flash  — next best; gemini-3.5-flash is served by it.
+    #   3. EXTRA_FALLBACK_MODELS — older / lite Flash models on independent
+    #      quota counters, so one exhausted counter never sinks a request.
+    # Not usable on the free tier: Pro models (gemini-3.1-pro-preview,
+    # gemini-4-argon), every image-generation model, Google Search grounding,
+    # and the 2.5 family (404 "no longer available to new users").
+    # ``services.gemini_grounded`` skips a model for as long as Google says
+    # its quota is exhausted, so a spent 3.8 counter costs nothing per call.
+    FLASH_MODEL = os.getenv("FLASH_MODEL", "gemini-3.8-flash")
+    FLASH_FALLBACK_MODEL = os.getenv("FLASH_FALLBACK_MODEL", "gemini-3.6-flash")
+    EXTRA_FALLBACK_MODELS = _env_list(
+        "EXTRA_FALLBACK_MODELS",
+        "gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-flash-lite-latest",
+    )
+
+    # Per-feature overrides; each defaults to the ladder above.
+    VISION_MODEL = os.getenv("VISION_MODEL", FLASH_MODEL)
+    VISION_FALLBACK_MODEL = os.getenv("VISION_FALLBACK_MODEL", FLASH_FALLBACK_MODEL)
+    # Product analysis (Compare Agent) and the review-only Analyst Agent.
+    ANALYST_MODEL = os.getenv("ANALYST_MODEL", FLASH_MODEL)
+    ANALYST_FALLBACK_MODEL = os.getenv("ANALYST_FALLBACK_MODEL", FLASH_FALLBACK_MODEL)
+    COMPARE_DEVICES_MODEL = os.getenv("COMPARE_DEVICES_MODEL", FLASH_MODEL)
+    COMPARE_DEVICES_FALLBACK_MODEL = os.getenv("COMPARE_DEVICES_FALLBACK_MODEL", FLASH_FALLBACK_MODEL)
+    DETECTIVE_MODEL = os.getenv("DETECTIVE_MODEL", FLASH_MODEL)
+    DETECTIVE_FALLBACK_MODEL = os.getenv("DETECTIVE_FALLBACK_MODEL", FLASH_FALLBACK_MODEL)
+    CHAT_MODEL = os.getenv("CHAT_MODEL", FLASH_MODEL)
+    CHAT_FALLBACK_MODEL = os.getenv("CHAT_FALLBACK_MODEL", FLASH_FALLBACK_MODEL)
+    PRICE_HISTORY_MODEL = os.getenv("PRICE_HISTORY_MODEL", FLASH_MODEL)
+    PRICE_HISTORY_FALLBACK_MODEL = os.getenv("PRICE_HISTORY_FALLBACK_MODEL", FLASH_FALLBACK_MODEL)
+    NEWS_MODEL = os.getenv("NEWS_MODEL", FLASH_MODEL)
+    NEWS_FALLBACK_MODEL = os.getenv("NEWS_FALLBACK_MODEL", FLASH_FALLBACK_MODEL)
+    # Native Gemini image generation ("Nano Banana"). Requires a billed key —
+    # image models have no free-tier quota.
+    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gemini-nano-banana-2.1")
+    IMAGE_FALLBACK_MODEL = os.getenv("IMAGE_FALLBACK_MODEL", "gemini-3.1-flash-image")
 
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")

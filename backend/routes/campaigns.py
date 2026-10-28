@@ -9,24 +9,30 @@ Returns two feeds for the Campaigns page:
    panel is never empty; each item is tagged with the store it belongs to and
    ``is_sample=True`` for transparency.
 
-2. ``news``     – fresh tech-pricing & product-launch headlines, fetched via
-   Gemini with Google Search grounding. Tries the highest-capability model
-   first (Gemini 3 Pro), gracefully falls back through Pro Preview → Flash
-   variants on quota / auth / transient errors.
+2. ``news``     – fresh tech-pricing & product-launch headlines. With Google
+   Search grounding (billed keys) Gemini researches them live. Without it
+   (free tier) the Tech-News Agent reads today's RSS feeds of Turkish tech
+   sites and Gemini only selects and summarises real articles — title link,
+   source and date always come from the feed, never from the model.
+   Model ladder: NEWS_MODEL → NEWS_FALLBACK_MODEL → shared extra rungs.
 """
 from __future__ import annotations
 
+import asyncio
+import html
+import json
 import logging
+import re
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Optional
 
+import httpx
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ..config import settings
-from ..services.gemini_client import (
-    GeminiAuthError,
-    configure_gemini_client,
-)
+from ..services.gemini_client import GeminiAuthError
 from ..services.gemini_grounded import call_gemini
 
 logger = logging.getLogger("technotrack.routes.campaigns")
@@ -530,63 +536,193 @@ def _parse_news(raw) -> List[NewsItem]:
     return out
 
 
-# ── Model cascade ─────────────────────────────────────────────────────────
-# Highest non-Pro Flash first for the best news-grounding quality, then
-# non-lite 2.5 Flash on an independent quota counter, then the lite tiers
-# as quota-survival rungs. The ``google_search`` tool occasionally
-# misfires on flash-lite (accepts the tool but emits the raw invocation
-# as text instead of executing it) — when that happens the cascade rolls
-# forward to the next rung.
-#
-# Notes on ordering:
-#   - ``gemini-3-pro`` (plain) is not exposed on v1beta and returns 404, so
-#     we skip it and start from publicly available previews if we ever need
-#     them as a last-resort.
-#   - Pro variants live at the back because they typically have zero free-
-#     tier quota on this key; the cascade only reaches them when every
-#     Flash rung has hit a quota / parse wall.
-_NEWS_MODEL_CASCADE: list[str] = [
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash",
-    "gemini-3-flash-lite-preview",
-    "gemini-2.5-flash-lite",
-    "gemini-3-pro-preview",
-    "gemini-2.5-pro",
-]
+# ── Live RSS source (used when Google Search grounding is unavailable) ───
+_RSS_FEEDS = {
+    "webtekno": "https://www.webtekno.com/rss.xml",
+    "shiftdelete": "https://shiftdelete.net/feed",
+    "donanimhaber": "https://www.donanimhaber.com/rss/tum/",
+    "chip": "https://www.chip.com.tr/rss",
+    "technopat": "https://www.technopat.net/feed/",
+}
+_RSS_MAX_AGE = timedelta(days=7)
+_RSS_PER_FEED = 25
+_RSS_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+def _rss_field(item_xml: str, tag: str) -> str:
+    match = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", item_xml, flags=re.S)
+    if not match:
+        return ""
+    text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", match.group(1), flags=re.S)
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", text))).strip()
+
+
+async def _fetch_feed(client: httpx.AsyncClient, source: str, url: str) -> list[dict]:
+    resp = await client.get(url)
+    resp.raise_for_status()
+    now = datetime.now(timezone.utc)
+    out: list[dict] = []
+    for item_xml in re.findall(r"<item>(.*?)</item>", resp.text, flags=re.S)[:_RSS_PER_FEED]:
+        title = _rss_field(item_xml, "title")
+        link = _rss_field(item_xml, "link")
+        try:
+            published = parsedate_to_datetime(_rss_field(item_xml, "pubDate"))
+        except (TypeError, ValueError):
+            continue
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        if not title or not link.startswith("http") or now - published > _RSS_MAX_AGE:
+            continue
+        out.append({
+            "source": source,
+            "title": title,
+            "url": link,
+            "published": published,
+            "snippet": _rss_field(item_xml, "description")[:280],
+        })
+    return out
+
+
+async def _fetch_rss_articles() -> list[dict]:
+    """Recent articles from every feed, newest first; a failing feed is skipped."""
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0), follow_redirects=True, headers={"User-Agent": _RSS_USER_AGENT},
+    ) as client:
+        results = await asyncio.gather(
+            *(_fetch_feed(client, name, url) for name, url in _RSS_FEEDS.items()),
+            return_exceptions=True,
+        )
+    articles: list[dict] = []
+    for name, res in zip(_RSS_FEEDS, results):
+        if isinstance(res, Exception):
+            logger.warning("RSS feed %s failed: %s", name, res)
+            continue
+        articles.extend(res)
+    articles.sort(key=lambda a: a["published"], reverse=True)
+    return articles
+
+
+def _date_label(published: datetime) -> str:
+    days = (datetime.now(timezone.utc).date() - published.astimezone(timezone.utc).date()).days
+    if days <= 0:
+        return "Bugün"
+    if days == 1:
+        return "Dün"
+    return f"{days} gün önce"
+
+
+_NEWS_OFFLINE_SYSTEM = """
+You are the Techno Track Tech-News Agent for the Turkish technology market.
+You receive a numbered list of REAL articles published this week by Turkish
+tech sites. Pick the ones a Turkish shopper of phones, laptops, tablets,
+consoles, headphones and other consumer electronics cares about: price
+changes, discounts and campaigns, new product launches and announcements.
+Skip unrelated stories (cars, games' story news, politics, science).
+
+OUTPUT FORMAT (strict):
+- Return ONLY a single valid JSON object. No markdown fences, no commentary.
+- Reference articles ONLY by their numeric ``article_id``. Never invent an
+  article, a URL, a price or a date.
+- ``title`` and ``summary`` MUST be in Turkish. The summary is 1-2 sentences
+  based only on the title and snippet you were given.
+""".strip()
+
+
+def _build_news_offline_prompt(articles: list[dict]) -> str:
+    listing = [
+        {"article_id": idx, "source": a["source"], "title": a["title"], "snippet": a["snippet"]}
+        for idx, a in enumerate(articles)
+    ]
+    schema_hint = """
+{
+  "news": [
+    {
+      "article_id": 0,
+      "title": "Kısa Türkçe başlık",
+      "summary": "1-2 cümlede neden önemli",
+      "category": "price-drop | new-product | launch | deal | industry"
+    }
+  ]
+}
+""".strip()
+    return f"""
+Bu haftanın gerçek teknoloji haberleri (en yeniden eskiye):
+
+{json.dumps(listing, ensure_ascii=False, indent=1)}
+
+Bunlardan alışveriş yapan biri için en ilgili 8-12 haberi seç ve şu şemayla
+döndür (yalnızca bu JSON):
+{schema_hint}
+""".strip()
+
+
+def _parse_offline_news(raw, articles: list[dict]) -> List[NewsItem]:
+    """Map the model's picks back onto real articles (url/source/date from RSS)."""
+    if not isinstance(raw, list):
+        return []
+    out: List[NewsItem] = []
+    used: set[int] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("article_id"))
+        except (TypeError, ValueError):
+            continue
+        if idx in used or not 0 <= idx < len(articles):
+            continue
+        used.add(idx)
+        article = articles[idx]
+        category = _str_or_none(item.get("category")) or "industry"
+        out.append(NewsItem(
+            id=f"{article['source']}-{idx}",
+            title=_str_or_none(item.get("title")) or article["title"],
+            summary=_str_or_none(item.get("summary")) or article["snippet"] or article["title"],
+            category=category if category in _NEWS_CATEGORIES else "industry",
+            date_label=_date_label(article["published"]),
+            source=article["source"],
+            url=article["url"],
+        ))
+    return out
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────
 @router.post(
     "",
     response_model=CampaignsResponse,
-    summary="Personalised coupons + grounded tech-news feed",
+    summary="Personalised coupons + live tech-news feed",
     status_code=status.HTTP_200_OK,
 )
 async def get_campaigns(body: CampaignsRequest) -> CampaignsResponse:
     logger.info(
         "POST /campaigns connected=%d", len(body.connected_accounts)
     )
-    configure_gemini_client()
 
     # 1. Coupons → always serve curated samples for each connected store.
     coupons = _build_sample_coupons(body.connected_accounts)
 
-    # 2. News → grounded Gemini cascade (Pro → Flash).
-    primary, fallback, *extras = _NEWS_MODEL_CASCADE
+    # 2. News → Google-grounded research when the key allows it, otherwise
+    #    real RSS articles selected and summarised by the same model ladder.
+    articles = await _fetch_rss_articles()
     try:
         result = await call_gemini(
-            primary,
-            fallback,
-            extra_models=extras,
+            settings.NEWS_MODEL,
+            settings.NEWS_FALLBACK_MODEL,
             system=_NEWS_SYSTEM,
             user_prompt=_build_news_prompt(),
+            offline_system=_NEWS_OFFLINE_SYSTEM,
+            offline_prompt=_build_news_offline_prompt(articles),
             use_search=True,
             response_json=True,
-            # 8192 leaves room for ~10 news items + grounding overhead so the
-            # JSON doesn't get truncated mid-array (was failing at 4096 on
-            # gemini-2.5-flash with a "Expecting ',' delimiter" parse error).
+            # Room for ~10 news items plus the 3.x thinking pass so the JSON
+            # doesn't get truncated mid-array.
             max_output_tokens=8192,
             temperature=0.4,
+            thinking_level="low",
+            timeout_seconds=120.0,
         )
     except GeminiAuthError as auth_err:
         raise HTTPException(
@@ -606,12 +742,17 @@ async def get_campaigns(body: CampaignsRequest) -> CampaignsResponse:
         )
 
     payload = result.parsed or {}
-    news = _parse_news(payload.get("news"))
+    if result.search_used:
+        news = _parse_news(payload.get("news"))
+        sources = result.sources
+    else:
+        news = _parse_offline_news(payload.get("news"), articles)
+        sources = [{"title": item.title, "uri": item.url} for item in news if item.url]
 
     return CampaignsResponse(
         coupons=coupons,
         news=news,
-        sources=[CampaignsSource(**s) for s in result.sources],
+        sources=[CampaignsSource(**s) for s in sources],
         model_used=result.model_used,
-        grounded=bool(result.sources),
+        grounded=bool(result.search_used and result.sources),
     )

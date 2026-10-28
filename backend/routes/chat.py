@@ -15,7 +15,7 @@ router = APIRouter(tags=["Chat"])
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_assistant(request: ChatRequest) -> ChatResponse:
     try:
-        reply_text = generate_chat_reply(request)
+        reply_text = await generate_chat_reply(request)
 
         if request.context_data:
             product_name = request.context_data.get("product_name", "Unknown Product")

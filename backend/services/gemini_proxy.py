@@ -1,18 +1,20 @@
-"""Backend-for-Frontend Gemini wrappers."""
+"""Backend-for-Frontend Gemini wrappers (chat assistant).
+
+The chat runs on the CHAT_MODEL → CHAT_FALLBACK_MODEL → shared extra-rung
+ladder through ``gemini_grounded.call_gemini``. Timing / price questions are
+grounded with Google Search when the key allows it; otherwise price questions
+get today's real marketplace prices from the Detective Agent injected into the
+context, and the model is told it has no web access.
+"""
 import json
 import logging
 import re
 
-import google.generativeai as genai
-import httpx
-
-from ..config import get_gemini_api_key, settings
-from ..models.requests import ChatRequest
-from .gemini_client import (
-    GeminiAuthError,
-    configure_gemini_client,
-    raise_if_auth_error,
-)
+from ..config import settings
+from ..models.requests import ChatRequest, DetectiveRequest
+from ..models.responses import AgentStatus
+from .gemini_client import GeminiAuthError
+from .gemini_grounded import call_gemini
 
 logger = logging.getLogger("technotrack.services.gemini_proxy")
 
@@ -22,17 +24,20 @@ Your goal is to help users make informed purchasing decisions based on the produ
 Be concise, friendly, and data-driven. Always refer to the provided context data when answering.
 
 PRICE GROUNDING RULES — read carefully:
-1. If the context contains a ``price_history`` block (12-month grounded chart
-   data produced by the Price Graphic), it is the AUTHORITATIVE source for ANY
+1. If the context contains a ``price_history`` block (12-month chart data
+   produced by the Price Graphic), it is the AUTHORITATIVE source for ANY
    price-related answer. Quote its ``lowest`` / ``highest`` / ``average`` /
    latest-month value verbatim. Do NOT invent or contradict these figures.
-2. If the context contains a ``stores`` array (per-retailer prices), you may
+   When ``price_history.grounded`` is false, only the latest month (note
+   "live: <store>") is a real price; earlier months are model estimates —
+   say so if you quote them.
+2. If the context contains ``live_prices`` (fetched moments ago from Turkish
+   marketplaces), those are the current real prices — quote them with the
+   store name. They win over any ``stores`` array from the catalog.
+3. If the context contains a ``stores`` array (per-retailer prices), you may
    cite those alongside the chart but the chart still wins on disputes.
-3. If no ``price_history`` is present AND the user asks about price, you MUST
-   call the Google Search tool to look up current Turkish e-commerce prices
-   (hepsiburada, trendyol, akakce, cimri, vatanbilgisayar, mediamarkt) before
-   giving any number. Never quote a price from training data alone.
-4. Other non-price topics (specs, features, comparisons, advice) — answer
+{price_lookup_rule}
+5. Other non-price topics (specs, features, comparisons, advice) — answer
    normally from the context and your own knowledge.
 
 If the context data shows that prices are dropping or an item is overpriced, warn the user.
@@ -95,12 +100,36 @@ DEVICE COMPARISON RULES — apply only when ``device_comparison`` is in the cont
   general knowledge of the two named devices.
 - Do NOT contradict the per-row winners in the report. If a row was a tie,
   call it a tie.
-When the user asks about WHEN to buy (timing, deals, upcoming sales, new model releases), use Google Search
-to gather fresh real-world data (current promos, expected next-gen launch dates, recent price trends) and
-ground your timing advice on those findings. Cite the key facts you used inline (e.g. "Eylül 2025'te yeni
-model çıkacağı için ...").
+{timing_rule}
 Respond in Turkish.
 """.strip()
+
+_SEARCH_PRICE_RULE = """4. If neither ``price_history`` nor ``live_prices`` is present AND the user asks
+   about price, you MUST call the Google Search tool to look up current
+   Turkish e-commerce prices (hepsiburada, trendyol, akakce, cimri,
+   vatanbilgisayar, mediamarkt) before giving any number. Never quote a price
+   from training data alone."""
+
+_OFFLINE_PRICE_RULE = """4. You have NO web access in this conversation. If neither ``price_history``
+   nor ``live_prices`` is present AND the user asks about price, say you
+   could not verify today's price and suggest opening the Price Graphic.
+   Never quote a price from training data."""
+
+_SEARCH_TIMING_RULE = """When the user asks about WHEN to buy (timing, deals, upcoming sales, new model releases), use Google Search
+to gather fresh real-world data (current promos, expected next-gen launch dates, recent price trends) and
+ground your timing advice on those findings. Cite the key facts you used inline (e.g. "Eylül 2025'te yeni
+model çıkacağı için ...")."""
+
+_OFFLINE_TIMING_RULE = """When the user asks about WHEN to buy, base the advice on the context (price
+history, live prices, campaigns news) and the product's usual release cycle, and make clear that upcoming
+launch dates or sales are not verified live."""
+
+
+def _chat_system(*, grounded: bool) -> str:
+    return _CHAT_SYSTEM.format(
+        price_lookup_rule=_SEARCH_PRICE_RULE if grounded else _OFFLINE_PRICE_RULE,
+        timing_rule=_SEARCH_TIMING_RULE if grounded else _OFFLINE_TIMING_RULE,
+    )
 
 
 _TIMING_PATTERNS = re.compile(
@@ -113,7 +142,7 @@ _TIMING_PATTERNS = re.compile(
 )
 
 # Plain "what is the price / how much" style asks — distinct from timing.
-# Triggers Google Search only when no price_history is in the context.
+# Triggers a live price lookup only when no price_history is in the context.
 _PRICE_PATTERNS = re.compile(
     r"(fiyat[ıi]?|kaç (tl|lira|para)|ne kadar|kaça|"
     r"ucuz|pahal[ıi]|indirim|kampanya|en d[uü]ş[uü]k|en y[uü]ksek|ortalama|"
@@ -147,190 +176,78 @@ def _has_price_history(context_data) -> bool:
     return isinstance(points, list) and len(points) > 0
 
 
-def _build_chat_messages(request: ChatRequest) -> list[dict]:
-    messages = []
-    for msg in request.history:
-        messages.append({"role": "user" if msg.role == "user" else "model", "parts": [msg.content]})
+async def _live_prices(product_name: str) -> list[dict]:
+    """Today's marketplace prices for the product in context (Detective Agent)."""
+    # Imported lazily: the agents package imports routes that import this module.
+    from ..agents.detective_agent import run_detective_agent
 
-    latest_message = request.user_message
-    if request.context_data:
-        context_str = json.dumps(request.context_data, ensure_ascii=False, indent=2)
-        latest_message = f"Product Analysis Context Data:\n{context_str}\n\nUser Question:\n{request.user_message}"
-
-    messages.append({"role": "user", "parts": [latest_message]})
-    return messages
-
-
-_CHAT_GENERATION_CONFIG = genai.GenerationConfig(
-    temperature=0.6,
-    top_p=0.95,
-    max_output_tokens=2048,
-)
-
-# Permissive safety filters — shopping advice should not be blocked as harmful.
-_CHAT_SAFETY_SETTINGS = [
-    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
-]
-
-
-_GEMINI_REST_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-
-
-def _extract_rest_grounding_citations(data: dict) -> str:
-    """Pull Kaynaklar block from a REST generateContent response."""
     try:
-        candidates = data.get("candidates") or []
-        if not candidates:
-            return ""
-        meta = candidates[0].get("groundingMetadata") or {}
-        chunks = meta.get("groundingChunks") or []
-        sources: list[str] = []
-        seen: set[str] = set()
-        for ch in chunks[:5]:
-            web = ch.get("web") or {}
-            uri = web.get("uri")
-            if not uri or uri in seen:
-                continue
-            seen.add(uri)
-            title = web.get("title") or uri
-            sources.append(f"- [{title}]({uri})")
-        if not sources:
-            return ""
-        return "\n\n**Kaynaklar:**\n" + "\n".join(sources)
-    except Exception:
-        return ""
-
-
-def _try_chat_model_rest_grounded(model_name: str, messages: list[dict]) -> tuple[str, dict]:
-    """Call Gemini via REST with the modern ``google_search`` tool.
-
-    The SDK (google-generativeai 0.8.x) only exposes ``google_search_retrieval``
-    which Gemini 2.5+/3 reject — so for grounded chat we go direct to REST,
-    same as price_history. Returns (reply_with_citations, raw_response).
-    """
-    api_key = get_gemini_api_key()
-    url = f"{_GEMINI_REST_BASE}/{model_name}:generateContent?key={api_key}"
-    body = {
-        "systemInstruction": {"parts": [{"text": _CHAT_SYSTEM}]},
-        "contents": [
-            {"role": m["role"], "parts": [{"text": p} for p in m["parts"]]}
-            for m in messages
-        ],
-        "tools": [{"google_search": {}}],
-        "safetySettings": _CHAT_SAFETY_SETTINGS,
-        "generationConfig": {
-            "temperature": 0.6,
-            "topP": 0.95,
-            "maxOutputTokens": 2048,
-        },
-    }
-    try:
-        resp = httpx.post(url, json=body, timeout=60.0)
-    except httpx.HTTPError as exc:
-        raise RuntimeError(f"Gemini REST chat failed (model={model_name}): {exc}") from exc
-
-    if resp.status_code != 200:
-        raise RuntimeError(
-            f"Gemini REST {resp.status_code} (model={model_name}): {resp.text[:300]}"
+        result = await run_detective_agent(
+            DetectiveRequest(product_keywords=product_name), collect_reviews=False,
         )
-
-    data = resp.json()
-    candidates = data.get("candidates") or []
-    if not candidates:
-        raise ValueError(f"Gemini returned no candidates (model={model_name}).")
-    parts = (candidates[0].get("content") or {}).get("parts") or []
-    text = "".join(p.get("text", "") for p in parts if isinstance(p, dict)).strip()
-    if not text:
-        raise ValueError(f"Gemini returned empty text (model={model_name}).")
-    return text + _extract_rest_grounding_citations(data), data
-
-
-def _try_chat_model(model_name: str, tools, messages: list[dict]) -> tuple[str, object]:
-    """Call a single Gemini chat model via SDK (no Google Search tool here).
-
-    Grounded calls go through ``_try_chat_model_rest_grounded`` instead because
-    the SDK doesn't expose the ``google_search`` tool form 2.5+ models require.
-    """
-    kwargs = {
-        "model_name": model_name,
-        "system_instruction": _CHAT_SYSTEM,
-        "safety_settings": _CHAT_SAFETY_SETTINGS,
-    }
-    if tools is not None:
-        kwargs["tools"] = tools
-
-    model = genai.GenerativeModel(**kwargs)
-    response = model.generate_content(
-        messages,
-        generation_config=_CHAT_GENERATION_CONFIG,
-    )
-    reply_text = (getattr(response, "text", None) or "").strip()
-    if not reply_text:
-        raise ValueError(f"Gemini boş yanıt döndü (model={model_name}).")
-    return reply_text, response
+    except GeminiAuthError:
+        raise
+    except Exception as err:
+        logger.warning("Chat live price lookup failed: %s", err)
+        return []
+    if result.status == AgentStatus.ERROR:
+        return []
+    return [
+        {"store": p.store, "price_try": p.price, "title": p.title, "url": p.url}
+        for p in result.found_prices[:6]
+    ]
 
 
-def generate_chat_reply(request: ChatRequest) -> str:
+def _build_turns(request: ChatRequest, context_data) -> tuple[list[dict], str]:
+    """Split the request into prior turns and the latest user message."""
+    history = [
+        {"role": "user" if msg.role == "user" else "model", "text": msg.content}
+        for msg in request.history
+    ]
+    latest_message = request.user_message
+    if context_data:
+        context_str = json.dumps(context_data, ensure_ascii=False, indent=2)
+        latest_message = f"Product Analysis Context Data:\n{context_str}\n\nUser Question:\n{request.user_message}"
+    return history, latest_message
+
+
+def _citations(sources: list[dict]) -> str:
+    if not sources:
+        return ""
+    lines = [f"- [{s.get('title') or s['uri']}]({s['uri']})" for s in sources[:5]]
+    return "\n\n**Kaynaklar:**\n" + "\n".join(lines)
+
+
+async def generate_chat_reply(request: ChatRequest) -> str:
     """Proxy frontend chat payload to Gemini and return plain reply text."""
-    configure_gemini_client()
-    messages = _build_chat_messages(request)
-    # Order matters: highest non-Pro Flash primary + non-lite 2.5 Flash
-    # fallback, then the lite tiers as quota-survival rungs (the
-    # ``google_search`` tool can flake on lite previews, but they still
-    # answer non-grounded chat fine), and finally PRO_MODEL as last resort.
-    # dict.fromkeys preserves order while de-duplicating operator overrides
-    # that collapse onto the same model name.
-    candidate_models = list(dict.fromkeys([
+    context_data = dict(request.context_data) if isinstance(request.context_data, dict) else request.context_data
+    has_chart = _has_price_history(context_data)
+    price_question = _is_price_question(request.user_message) and not has_chart
+
+    # Ground with Google Search when the user asks WHEN to buy, or asks about
+    # price before any chart exists. For price questions also attach today's
+    # real marketplace prices, so the answer is factual even without search.
+    use_search = _is_timing_question(request.user_message) or price_question
+    if price_question and isinstance(context_data, dict):
+        product_name = context_data.get("product_name") or context_data.get("name")
+        if product_name:
+            live = await _live_prices(str(product_name))
+            if live:
+                context_data["live_prices"] = live
+
+    history, latest_message = _build_turns(request, context_data)
+    result = await call_gemini(
         settings.CHAT_MODEL,
         settings.CHAT_FALLBACK_MODEL,
-        settings.FLASH_MODEL,
-        "gemini-3-flash-lite-preview",
-        "gemini-2.5-flash-lite",
-        settings.PRO_MODEL,
-    ]))
-
-    # Ground with Google Search when:
-    #   - user asks WHEN to buy (timing), OR
-    #   - user asks about price AND no price_history was supplied by the
-    #     frontend (i.e. no chart has been generated yet, so we need a live
-    #     lookup rather than relying on training data).
-    has_chart = _has_price_history(request.context_data)
-    use_search = _is_timing_question(request.user_message) or (
-        _is_price_question(request.user_message) and not has_chart
+        system=_chat_system(grounded=True),
+        offline_system=_chat_system(grounded=False),
+        user_prompt=latest_message,
+        history=history,
+        use_search=use_search,
+        response_json=False,
+        max_output_tokens=4096,
+        temperature=0.6,
+        thinking_level="low",
+        timeout_seconds=90.0,
     )
-
-    last_error: Exception | None = None
-    for model_name in candidate_models:
-        # When grounding is desired, try the REST grounded path first; on any
-        # error fall back to the plain SDK path so the user still gets text.
-        if use_search:
-            try:
-                reply_text, _ = _try_chat_model_rest_grounded(model_name, messages)
-                return reply_text
-            except Exception as exc:
-                try:
-                    raise_if_auth_error(exc)
-                except GeminiAuthError as auth_err:
-                    logger.error("Chat auth error: %s", auth_err)
-                    raise RuntimeError(str(auth_err)) from auth_err
-                logger.warning(
-                    "Chat grounded (REST) failed (model=%s): %s", model_name, exc
-                )
-                last_error = exc
-
-        try:
-            reply_text, _ = _try_chat_model(model_name, None, messages)
-            return reply_text
-        except Exception as exc:
-            try:
-                raise_if_auth_error(exc)
-            except GeminiAuthError as auth_err:
-                logger.error("Chat auth error: %s", auth_err)
-                raise RuntimeError(str(auth_err)) from auth_err
-            logger.warning("Chat model failed (model=%s): %s", model_name, exc)
-            last_error = exc
-
-    raise RuntimeError("Hiçbir chat modeli yanıt üretemedi.") from last_error
+    return result.text + _citations(result.sources)

@@ -24,10 +24,8 @@ class DetectedSpec(BaseModel):
 
 class VisionResponse(BaseModel):
     """
-    Structured output from the Vision Agent (Gemini 3 Flash primary,
-    cascading down to non-lite 2.5 Flash, then lite tiers, and Pro
-    variants as a paid-plan last resort). Identifies product details
-    from an image.
+    Structured output from the Vision Agent (VISION_MODEL first, then the
+    configured fallback ladder). Identifies product details from an image.
     """
     status:       AgentStatus
     agent:        str              = "vision_agent (gemini-3-flash)"
@@ -53,17 +51,21 @@ class StoreResult(BaseModel):
     store: str
     price: float
     url: str
+    title: Optional[str] = None
+    rating: Optional[float] = None
 
 class DetectiveResponse(BaseModel):
     """
-    Structured output from Detective Agent (Search Logic).
+    Structured output from Detective Agent (live marketplace search).
     """
     status:       AgentStatus
-    agent:        str = "detective_agent (search)"
+    agent:        str = "detective_agent (live marketplace search)"
     query_used:   str
     retries:      int
     found_prices: List[StoreResult] = Field(default_factory=list)
     reviews_found:List[str] = Field(default_factory=list)
+    stores_searched: List[str] = Field(default_factory=list)
+    model_used:   Optional[str] = Field(None, description="Model that filtered the listings, or 'keyword-match'.")
     error_detail: Optional[str] = None
 
 
@@ -125,11 +127,11 @@ class StyleResponse(BaseModel):
     Contains the generated style/room-placement image.
     """
     status:       AgentStatus
-    agent:        str           = "visualizer_agent (imagen-3)"
+    agent:        str           = "visualizer_agent (gemini image generation)"
     image_url:    Optional[str] = Field(None, description="Public URL of the generated image (stored in Supabase Storage).")
     image_base64: Optional[str] = Field(None, description="Base64-encoded fallback if storage upload fails.")
     prompt_used:  Optional[str] = None
-    model_used:   str           = "imagen-3.0-generate-002"
+    model_used:   Optional[str] = None
     error_detail: Optional[str] = None
 
 

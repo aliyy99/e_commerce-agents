@@ -1,4 +1,4 @@
-"""Shared async Gemini REST helper with Google Search grounding.
+"""Shared async Gemini REST helper with optional Google Search grounding.
 
 One ``call_gemini`` coroutine used by every agent: it talks to the REST API via
 ``httpx.AsyncClient`` (the google-generativeai SDK only exposes the legacy
@@ -6,19 +6,29 @@ One ``call_gemini`` coroutine used by every agent: it talks to the REST API via
 With ``response_json=True`` it extracts JSON robustly (direct parse → fenced
 block → first ``{…}`` slice → repair stack) and, when grounded, returns the
 unique ``{title, uri}`` sources from ``groundingMetadata``.
+
+Free-tier resilience:
+  • Models whose quota is exhausted (429 + RetryInfo) or that are retired
+    (404) are skipped until Google says they are usable again, so a spent
+    20-requests/day counter costs no extra round-trip per call.
+  • Google Search grounding has no free-tier quota on Gemini 3.x. When a
+    grounded call is refused, the same model is retried without the tool
+    (using the caller's ``offline_*`` prompts) and search stays disabled for
+    ``_SEARCH_RECHECK_SECONDS`` before it is probed again.
 """
 from __future__ import annotations
 
-import asyncio
+import base64
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import httpx
 
-from ..config import get_gemini_api_key
+from ..config import get_gemini_api_key, settings
 from .gemini_client import (
     GeminiAuthError,
     is_auth_error,
@@ -28,6 +38,70 @@ from .gemini_client import (
 logger = logging.getLogger("technotrack.services.gemini_grounded")
 
 _REST_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# model name → monotonic timestamp until which the model is skipped.
+_MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
+# Retired models ("no longer available to new users") are re-checked rarely.
+_UNAVAILABLE_MODEL_COOLDOWN_SECONDS = 6 * 60 * 60
+# 429 without a RetryInfo hint: assume a per-minute window.
+_DEFAULT_QUOTA_COOLDOWN_SECONDS = 60.0
+# An overloaded (503) or hanging model is skipped briefly so the next calls
+# of the same request flow don't wait on it again.
+_OVERLOAD_COOLDOWN_SECONDS = 45.0
+# Read timeout for every rung except the last one in a cascade.
+_NON_FINAL_TIMEOUT_SECONDS = 60.0
+_search_disabled_until: float = 0.0
+_SEARCH_RECHECK_SECONDS = 30 * 60
+
+
+def _model_cooling_down(model_name: str) -> bool:
+    return _MODEL_COOLDOWN_UNTIL.get(model_name, 0.0) > time.monotonic()
+
+
+def _note_model_failure(model_name: str, err: Exception) -> None:
+    """Park a model that Google told us not to call for a while."""
+    cooldown: float | None = None
+    if getattr(err, "is_model_unavailable", False):
+        cooldown = _UNAVAILABLE_MODEL_COOLDOWN_SECONDS
+    elif getattr(err, "is_quota_limited", False):
+        cooldown = getattr(err, "retry_after", None) or _DEFAULT_QUOTA_COOLDOWN_SECONDS
+    if cooldown:
+        _MODEL_COOLDOWN_UNTIL[model_name] = time.monotonic() + cooldown
+        logger.warning("Gemini model %s parked for %.0fs.", model_name, cooldown)
+
+
+def search_available() -> bool:
+    """False while Google Search grounding is known to be refused for this key."""
+    return _search_disabled_until <= time.monotonic()
+
+
+def _disable_search() -> None:
+    global _search_disabled_until
+    _search_disabled_until = time.monotonic() + _SEARCH_RECHECK_SECONDS
+    logger.warning(
+        "Google Search grounding refused for this key (no free-tier quota); "
+        "continuing ungrounded for %d minutes.", _SEARCH_RECHECK_SECONDS // 60,
+    )
+
+
+def _parse_error_body(resp: httpx.Response) -> tuple[Optional[float], bool]:
+    """Return (retry_after_seconds, has_quota_violations) from an error body."""
+    retry_after: Optional[float] = None
+    has_violations = False
+    try:
+        details = resp.json().get("error", {}).get("details", [])
+    except Exception:
+        return None, False
+    for det in details:
+        if det.get("violations"):
+            has_violations = True
+        delay = det.get("retryDelay")
+        if isinstance(delay, str) and delay.endswith("s"):
+            try:
+                retry_after = float(delay[:-1])
+            except ValueError:
+                pass
+    return retry_after, has_violations
 
 # Permissive safety filters — product / shopping analysis should never be
 # blocked as harmful.
@@ -245,12 +319,14 @@ def _extract_text(data: dict) -> str:
 
 @dataclass
 class GroundedResult:
-    """Outcome of a grounded Gemini REST call."""
+    """Outcome of a Gemini REST call."""
     text: str
     parsed: Optional[dict]
     sources: list[dict] = field(default_factory=list)
     model_used: str = ""
     raw: dict | None = None
+    # True when the google_search tool was attached to the successful call.
+    search_used: bool = False
 
 
 async def _call_once(
@@ -265,14 +341,22 @@ async def _call_once(
     temperature: float,
     top_p: float,
     thinking_level: Optional[str] = None,
+    images: Optional[list[tuple[str, bytes]]] = None,
+    history: Optional[list[dict]] = None,
 ) -> GroundedResult:
     """Single REST roundtrip — surfaces detailed diagnostics on failure."""
     api_key = get_gemini_api_key()
-    url = f"{_REST_BASE}/{model_name}:generateContent?key={api_key}"
+    url = f"{_REST_BASE}/{model_name}:generateContent"
 
+    parts: list[dict[str, Any]] = [{"text": user_prompt}]
+    for mime_type, data in images or []:
+        parts.append({"inlineData": {"mimeType": mime_type, "data": base64.b64encode(data).decode("ascii")}})
+    contents = [
+        {"role": turn["role"], "parts": [{"text": turn["text"]}]} for turn in history or []
+    ]
+    contents.append({"role": "user", "parts": parts})
     body: dict[str, Any] = {
-        "systemInstruction": {"parts": [{"text": system}]},
-        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+        "contents": contents,
         "safetySettings": _DEFAULT_SAFETY,
         "generationConfig": {
             "temperature": temperature,
@@ -280,6 +364,8 @@ async def _call_once(
             "maxOutputTokens": max_output_tokens,
         },
     }
+    if system:
+        body["systemInstruction"] = {"parts": [{"text": system}]}
     # Gemini 3.x reasoning models spend part of the output-token budget on an
     # internal "thinking" pass before the answer. For a structured JSON
     # extraction that reasoning is mostly wasted latency (and can starve the
@@ -296,7 +382,8 @@ async def _call_once(
     if response_json and not use_search:
         body["generationConfig"]["responseMimeType"] = "application/json"
 
-    resp = await client.post(url, json=body)
+    # Key goes in a header, not the query string, so it never lands in logs.
+    resp = await client.post(url, json=body, headers={"x-goog-api-key": api_key})
     if resp.status_code != 200:
         snippet = resp.text[:300]
         # Hard "your key is broken" failures short-circuit the cascade. A plain
@@ -324,12 +411,25 @@ async def _call_once(
         #     in 2s; retrying the same model wastes another HTTP round-trip
         #     for nothing. Mark as quota-limited and skip retry — the cascade
         #     immediately moves to the next model, which has independent RPM.
+        retry_after, has_violations = _parse_error_body(resp)
         err.is_transient = resp.status_code == 503 or "UNAVAILABLE" in snippet
         err.is_quota_limited = resp.status_code == 429
+        err.retry_after = retry_after
+        err.is_model_unavailable = resp.status_code == 404
+        # A grounded 429 that names no model quota means the key has no
+        # google_search allowance at all (free tier on Gemini 3.x).
+        err.is_search_unavailable = use_search and resp.status_code == 429 and not has_violations
         raise err
 
     data = resp.json()
     text = _extract_text(data)
+    if not text:
+        candidate = (data.get("candidates") or [{}])[0]
+        err = RuntimeError(
+            f"Gemini returned no text (model={model_name}, finishReason={candidate.get('finishReason')})."
+        )
+        err.is_transient = False
+        raise err
     sources = _collect_grounding_sources(data) if use_search else []
     parsed: dict | None = None
     if response_json:
@@ -352,6 +452,7 @@ async def _call_once(
         sources=sources,
         model_used=model_name,
         raw=data,
+        search_used=use_search,
     )
 
 
@@ -369,17 +470,30 @@ async def call_gemini(
     top_p: float = 0.95,
     timeout_seconds: float = 90.0,
     thinking_level: Optional[str] = None,
+    images: Optional[list[tuple[str, bytes]]] = None,
+    history: Optional[list[dict]] = None,
+    offline_system: Optional[str] = None,
+    offline_prompt: Optional[str] = None,
 ) -> GroundedResult:
     """
     Multi-tier async Gemini call. Tries ``primary_model`` first; on transient
     failure or quota error, falls back to ``fallback_model`` and then each
-    entry in ``extra_models`` in order. The first model that returns a usable
-    response wins — useful for "always use the highest-capability model that
-    actually works" cascades (e.g. Pro → Pro Preview → Flash → Flash-Lite).
+    entry in ``extra_models`` (default: ``settings.EXTRA_FALLBACK_MODELS``)
+    in order. The first model that returns a usable response wins.
+
+    ``images`` are ``(mime_type, bytes)`` pairs sent after the prompt.
+    ``history`` holds earlier chat turns as ``{"role": "user"|"model", "text": ...}``.
+    ``offline_system`` / ``offline_prompt`` replace the grounded prompts when
+    Google Search is unavailable, so callers never ask the model to "search"
+    without a search tool. ``result.search_used`` tells which variant ran.
 
     Auth errors short-circuit the cascade.
     """
-    candidates = [m for m in [primary_model, fallback_model, *(extra_models or [])] if m]
+    # Re-read backend/.env so a rotated GEMINI_API_KEY applies without a restart.
+    get_gemini_api_key(reload=True)
+    if extra_models is None:
+        extra_models = settings.EXTRA_FALLBACK_MODELS
+    candidates = [m for m in [primary_model, fallback_model, *extra_models] if m]
     # De-dup while preserving order so ``primary == fallback`` doesn't waste a slot.
     seen: set[str] = set()
     deduped: list[str] = []
@@ -392,55 +506,68 @@ async def call_gemini(
     if not candidates:
         raise ValueError("At least one Gemini model name is required.")
 
-    timeout = httpx.Timeout(connect=10.0, read=timeout_seconds, write=20.0, pool=20.0)
+    active = [m for m in candidates if not _model_cooling_down(m)]
+    if not active:
+        err = RuntimeError(f"Every Gemini model is out of quota for now: {', '.join(candidates)}")
+        err.is_quota_limited = True
+        raise err
+    skipped = [m for m in candidates if m not in active]
+    if skipped:
+        logger.info("call_gemini skipping parked models: %s", ", ".join(skipped))
+
+    search = use_search and search_available()
     last_err: Exception | None = None
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        for idx, model_name in enumerate(candidates):
-            # One retry per model when the failure is transient (503/429 from
-            # Google's traffic shaper). Brief backoff before the second try —
-            # demand spikes are usually < 3 seconds.
-            for attempt in range(2):
+    async with httpx.AsyncClient() as client:
+        for idx, model_name in enumerate(active):
+            # A congested preview model can hang without answering; cap every
+            # rung except the last so one stuck model can't eat the request.
+            is_last = idx == len(active) - 1
+            read_timeout = timeout_seconds if is_last else min(timeout_seconds, _NON_FINAL_TIMEOUT_SECONDS)
+            client.timeout = httpx.Timeout(connect=10.0, read=read_timeout, write=20.0, pool=20.0)
+            while True:
                 try:
                     result = await _call_once(
                         client, model_name,
-                        system=system,
-                        user_prompt=user_prompt,
-                        use_search=use_search,
+                        system=system if search else (offline_system or system),
+                        user_prompt=user_prompt if search else (offline_prompt or user_prompt),
+                        use_search=search,
                         response_json=response_json,
                         max_output_tokens=max_output_tokens,
                         temperature=temperature,
                         top_p=top_p,
                         thinking_level=thinking_level,
+                        images=images,
+                        history=history,
                     )
-                    if idx > 0 or attempt > 0:
-                        logger.warning(
-                            "call_gemini -> recovered with model=%s (attempt=%d)",
-                            model_name, attempt + 1,
-                        )
+                    if idx > 0:
+                        logger.warning("call_gemini -> recovered with model=%s", model_name)
                     return result
                 except GeminiAuthError:
                     raise
                 except Exception as err:
                     last_err = err
-                    transient_overload = bool(getattr(err, "is_transient", False))
+                    if search and getattr(err, "is_search_unavailable", False):
+                        # Same model, no tool — the model itself is fine.
+                        _disable_search()
+                        search = False
+                        continue
+                    _note_model_failure(model_name, err)
+                    timed_out = isinstance(err, httpx.TimeoutException)
+                    transient_overload = timed_out or bool(getattr(err, "is_transient", False))
                     quota_limited = bool(getattr(err, "is_quota_limited", False)) or is_rate_limit_error(err)
-                    # Only 503/UNAVAILABLE warrants a same-model retry. A 429
-                    # quota window won't clear in 2 seconds, so don't waste
-                    # the second HTTP round-trip on it.
-                    if transient_overload and not quota_limited and attempt == 0:
-                        logger.warning(
-                            "call_gemini transient on %s — retrying once after 2s backoff.",
-                            model_name,
-                        )
-                        await asyncio.sleep(2.0)
-                        continue  # Retry the same model once.
                     if quota_limited:
                         logger.warning("call_gemini quota on %s, trying fallback.", model_name)
                     elif transient_overload:
-                        logger.warning("call_gemini overload on %s, trying fallback.", model_name)
+                        # Retrying an overloaded (503) or hanging model right
+                        # away almost never helps; park it and move down.
+                        _MODEL_COOLDOWN_UNTIL[model_name] = time.monotonic() + _OVERLOAD_COOLDOWN_SECONDS
+                        logger.warning(
+                            "call_gemini %s on %s, parked for %.0fs, trying fallback.",
+                            "timeout" if timed_out else "overload", model_name, _OVERLOAD_COOLDOWN_SECONDS,
+                        )
                     else:
-                        logger.warning("call_gemini failed on %s: %s", model_name, err)
-                    break  # Stop retrying this model, move on to the next.
+                        logger.warning("call_gemini failed on %s: %s: %s", model_name, type(err).__name__, err)
+                    break  # Move on to the next model.
 
     # Friendlier UI message — different copy for "everyone's busy" vs "we hit
     # OUR per-minute quota with this key". The latter is the more common case
@@ -448,9 +575,9 @@ async def call_gemini(
     if last_err is not None:
         if getattr(last_err, "is_quota_limited", False) or is_rate_limit_error(last_err):
             raise RuntimeError(
-                "Your Gemini key hit its per-minute quota. Please wait about a "
-                "minute and try again — the analysis will then run normally and "
-                "subsequent calls for the same product return instantly from cache."
+                "Every Gemini model on this key is out of quota right now. Please "
+                "wait a minute and try again — per-minute limits reset quickly, and "
+                "repeat analyses of the same product are served from cache."
             ) from last_err
         if getattr(last_err, "is_transient", False) or "UNAVAILABLE" in str(last_err):
             raise RuntimeError(

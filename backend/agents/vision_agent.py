@@ -1,20 +1,12 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║                  VISION AGENT  –  Flash-Lite → Pro Cascade           ║
+║                  VISION AGENT  –  Strongest-Flash-First Cascade      ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║  Identifies the EXACT product in an image with calibrated confidence.║
-║  Cascades from quota-friendly Flash-Lite up through non-lite Flash   ║
-║  and Pro variants. Early-exits as soon as a tier returns confidence  ║
-║  ≥ _TRUST_CONFIDENCE (0.55), so the bigger / quota-walled models     ║
-║  are only invoked when the lite tier hesitates.                      ║
-║                                                                      ║
-║  Why Flash-Lite first?                                               ║
-║   • Project-wide low-quota policy: lite tiers have the broadest      ║
-║     free-tier RPM and seldom return 429.                             ║
-║   • Flash-Lite is fully multimodal and handles clear product shots   ║
-║     well; ambiguous cases roll forward to higher-capability rungs.   ║
-║   • A stronger structured prompt + higher confidence floor (0.55)    ║
-║     keeps the agent from confidently returning the wrong model.      ║
+║  Starts with the strongest free-tier Flash model (VISION_MODEL) and  ║
+║  walks down the configured ladder. Early-exits as soon as a model    ║
+║  returns confidence ≥ _TRUST_CONFIDENCE (0.55); lower rungs are only ║
+║  called when a stronger model hesitates or is out of quota.          ║
 ╚══════════════════════════════════════════════════════════════════════╝
 """
 from __future__ import annotations
@@ -26,36 +18,19 @@ import re
 from datetime import datetime
 from typing import Optional
 
-import google.generativeai as genai
-
+from ..config import settings
 from ..models.requests import VisionRequest
 from ..models.responses import VisionResponse, AgentStatus, DetectedSpec
-from ..services.gemini_client import (
-    GeminiAuthError,
-    configure_gemini_client,
-    is_auth_error,
-    is_rate_limit_error,
-)
+from ..services.gemini_client import GeminiAuthError, is_rate_limit_error
+from ..services.gemini_grounded import call_gemini
 
 logger = logging.getLogger("technotrack.vision_agent")
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Model cascade — highest non-Pro Flash first for best identification
-# quality, then non-lite 2.5 Flash on an independent quota counter, then
-# the lite tiers as a quota-survival safety net, and finally Pro variants
-# as a paid-plan last resort. Early-exit on >= _TRUST_CONFIDENCE means the
-# deeper rungs only get called when the Flash answer is below the trust
-# floor or the higher rungs have exhausted their quota.
-# ─────────────────────────────────────────────────────────────────────
-_VISION_MODEL_CASCADE: list[str] = [
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash",
-    "gemini-3-flash-lite-preview",
-    "gemini-2.5-flash-lite",
-    "gemini-3-pro-preview",
-    "gemini-2.5-pro",
-]
+def _vision_model_cascade() -> list[str]:
+    """VISION_MODEL → VISION_FALLBACK_MODEL → shared extra rungs (de-duplicated)."""
+    ladder = [settings.VISION_MODEL, settings.VISION_FALLBACK_MODEL, *settings.EXTRA_FALLBACK_MODELS]
+    return list(dict.fromkeys(m for m in ladder if m))
 
 # Minimum confidence we'll trust for a direct catalog match. Below this we
 # either keep trying higher-capability models or hand off to the user.
@@ -178,36 +153,33 @@ def _parse_vision_json(raw_text: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────
 # Single-model call
 # ─────────────────────────────────────────────────────────────────────
-def _call_vision_model(model_name: str, image_part: dict, locale: str) -> dict:
-    """Run one Gemini vision call. Raises on transport / parse failures."""
-    configure_gemini_client()
-    model = genai.GenerativeModel(model_name=model_name)
-    prompt = _render_vision_prompt(locale)
+async def _call_vision_model(model_name: str, image: tuple[str, bytes], locale: str) -> dict:
+    """Run one Gemini vision call on exactly ``model_name``.
 
-    try:
-        response = model.generate_content(
-            [prompt, image_part],
-            generation_config=genai.GenerationConfig(
-                # Near-deterministic so the same image yields stable IDs.
-                temperature=0.05,
-                top_p=0.9,
-                max_output_tokens=1024,
-                response_mime_type="application/json",
-            ),
-        )
-    except Exception as err:
-        # Auth = hard stop; quota = transient → cascade falls through.
-        if is_auth_error(err) and not is_rate_limit_error(err):
-            raise GeminiAuthError(
-                "Gemini API anahtarı geçersiz veya yetkisiz. backend/.env içindeki "
-                "GEMINI_API_KEY değerini yenileyin."
-            ) from err
-        raise
-
-    text = (getattr(response, "text", None) or "").strip()
-    if not text:
-        raise ValueError(f"Empty response from {model_name}.")
-    return _parse_vision_json(text)
+    Raises on transport / parse failures (and immediately, without a request,
+    when the model is parked for quota) so the cascade can move on.
+    """
+    result = await call_gemini(
+        model_name,
+        None,
+        extra_models=[],
+        system="",
+        user_prompt=_render_vision_prompt(locale),
+        images=[image],
+        use_search=False,
+        # Parsed below with the vision-specific extractor.
+        response_json=False,
+        # Near-deterministic so the same image yields stable IDs. The budget
+        # leaves room for the 3.x thinking pass before the JSON answer.
+        temperature=0.05,
+        top_p=0.9,
+        max_output_tokens=4096,
+        thinking_level="low",
+        # Healthy models answer in 3-20 s; a congested preview model can hang,
+        # and the cascade below has more rungs to try.
+        timeout_seconds=40.0,
+    )
+    return _parse_vision_json(result.text)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -242,20 +214,16 @@ async def run_vision_agent(request: VisionRequest) -> VisionResponse:
         logger.warning("Unsupported mime_type=%s, falling back to image/jpeg.", mime)
         mime = "image/jpeg"
 
-    image_part = {
-        "mime_type": mime,
-        "data": base64.b64encode(image_bytes).decode("utf-8"),
-    }
-
     # ── 2. Cascade through models, keeping the best response ──
+    cascade = _vision_model_cascade()
     best: Optional[dict] = None
     best_model: Optional[str] = None
     best_conf: float = -1.0
     errors: list[str] = []
 
-    for model_name in _VISION_MODEL_CASCADE:
+    for model_name in cascade:
         try:
-            data = _call_vision_model(model_name, image_part, request.locale)
+            data = await _call_vision_model(model_name, (mime, image_bytes), request.locale)
         except GeminiAuthError as auth_err:
             logger.error("VisionAgent auth error on %s: %s", model_name, auth_err)
             return VisionResponse(
@@ -291,7 +259,7 @@ async def run_vision_agent(request: VisionRequest) -> VisionResponse:
         if isinstance(s, dict) and s.get("key"):
             specs.append(DetectedSpec(key=str(s["key"]), value=str(s.get("value") or "")))
 
-    status = AgentStatus.SUCCESS if best_model == _VISION_MODEL_CASCADE[0] else AgentStatus.FALLBACK
+    status = AgentStatus.SUCCESS if best_model == cascade[0] else AgentStatus.FALLBACK
 
     # Refuse to emit obviously-generic "product_name"s — these slip through as
     # high-confidence guesses ("Smartphone", "Laptop") and poison the catalog

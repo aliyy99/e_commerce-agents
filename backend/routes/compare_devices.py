@@ -2,7 +2,7 @@
 Techno Track AI - Device Comparison Route
 POST /api/v1/compare-devices
 
-Takes two device specs and uses Gemini Flash to produce an exhaustive,
+Takes two device specs and uses the strongest available Gemini Flash model to produce an exhaustive,
 spec-by-spec head-to-head comparison: a winner table grouped by category
 (performance, display, camera, battery, software, design, value, etc.) plus
 a long-form summary article and per-device "best for" guidance.
@@ -291,16 +291,14 @@ async def compare_devices(body: CompareDevicesRequest) -> CompareDevicesResponse
 
     prompt = _build_prompt(body)
 
-    # UNGROUNDED call → Gemini 3.5 Flash primary, 2.5 Flash fallback on an
-    # independent quota counter. We deliberately skip google_search here: it
-    # has zero free-tier quota on every Gemini 3.x model (instant 429), and a
-    # spec-vs-spec device verdict leans on the model's own product knowledge,
-    # not a live web fetch — the frontend never renders grounding sources for
-    # this page. thinking_level="low" keeps the 3.x reasoning model fast on
-    # what is really a structured-JSON extraction (3.x-only; the 2.5 fallback
-    # transparently ignores it).
-    primary = getattr(settings, "COMPARE_DEVICES_MODEL", None) or "gemini-3.5-flash"
-    fallback = getattr(settings, "COMPARE_DEVICES_FALLBACK_MODEL", None) or "gemini-2.5-flash"
+    # UNGROUNDED call on the strongest Flash ladder (COMPARE_DEVICES_MODEL →
+    # fallback → shared extra rungs). A spec-vs-spec verdict leans on the
+    # model's own product knowledge plus the specs we send, not a live web
+    # fetch — the frontend never renders grounding sources for this page.
+    # thinking_level="low" keeps the 3.x reasoning model fast on what is
+    # really a structured-JSON extraction.
+    primary = settings.COMPARE_DEVICES_MODEL
+    fallback = settings.COMPARE_DEVICES_FALLBACK_MODEL
 
     try:
         grounded = await call_gemini(

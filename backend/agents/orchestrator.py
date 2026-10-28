@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket
 
+from ..config import settings
 from ..models.requests import OrchestrateRequest, ProductCategory, DetectiveRequest, AnalystRequest, PricePoint
 from ..models.responses import (
     AgentStatus, OrchestrateResponse,
@@ -92,7 +93,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── 1. Vision Agent ─────────────────────────────
     if request.vision is not None:
         agents_invoked.append("vision_agent")
-        await emit_status(sid, "Visionary", "Gemini 3 Flash is analyzing the image...")
+        await emit_status(sid, "Visionary", f"{settings.VISION_MODEL} is analyzing the image...")
         try:
             vision_result = await run_vision_agent(request.vision)
             if vision_result.status != AgentStatus.ERROR:
@@ -115,7 +116,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── 2. Detective Agent ──────────────────────────
     if keywords:
         agents_invoked.append("detective_agent")
-        await emit_status(sid, "Detective", "Searching global marketplaces for the best price...")
+        await emit_status(sid, "Detective", "Searching Turkish marketplaces for live prices...")
         req = DetectiveRequest(product_keywords=keywords)
         
         async def emit_det(msg): await emit_status(sid, "Detective", msg)
@@ -135,7 +136,14 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── 3. Analyst Agent ────────────────────────────
     # If we have scraped data, or if user explicitly provided analyst payload
     analyst_req = None
-    if detective_result and detective_result.status != AgentStatus.ERROR and detective_result.found_prices:
+    detective_ok = bool(
+        detective_result and detective_result.status != AgentStatus.ERROR and detective_result.found_prices
+    )
+    if detective_ok and not detective_result.reviews_found and not request.analyst:
+        # Live search can find prices on pages that expose no reviews; the
+        # Analyst Agent needs at least one review, so it is skipped honestly.
+        await emit_status(sid, "Analyst", "No customer reviews found on the matched listings; review analysis skipped.")
+    if detective_ok and detective_result.reviews_found:
         prices = [
             PricePoint(date=datetime.now().strftime("%Y-%m-%d"), price=p.price, store=p.store)
             for p in detective_result.found_prices
@@ -160,8 +168,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     if analyst_req:
         agents_invoked.append("analyst_agent")
         review_count = len(analyst_req.reviews)
-        from ..config import settings as _s
-        await emit_status(sid, "Analyst", f"{_s.PRO_MODEL} is processing {review_count}+ reviews for sentiment analysis...")
+        await emit_status(sid, "Analyst", f"{settings.ANALYST_MODEL} is processing {review_count} reviews for sentiment analysis...")
         
         async def emit_ana(msg): await emit_status(sid, "Analyst", msg)
         try:
@@ -178,7 +185,7 @@ async def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     # ── 4. Visualizer Agent ─────────────────────────
     if request.style and request.category in (ProductCategory.FASHION, ProductCategory.FURNITURE):
         agents_invoked.append("visualizer_agent")
-        await emit_status(sid, "Visualizer", "Generating contextual style image (Imagen 3)...")
+        await emit_status(sid, "Visualizer", f"Generating contextual style image ({settings.IMAGE_MODEL})...")
         try:
             style_result = await run_visualizer_agent(request.style)
             if style_result.status != AgentStatus.ERROR:

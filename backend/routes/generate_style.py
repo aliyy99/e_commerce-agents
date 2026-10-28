@@ -19,7 +19,7 @@ router = APIRouter(tags=["Visualizer Agent"])
     summary="Generate an outfit combo or room layout image",
     description=(
         "Only available for **fashion** and **furniture** categories. "
-        "The **Visualizer Agent** (Imagen 3) generates a photorealistic "
+        "The **Visualizer Agent** (Gemini native image generation; needs a billed key) generates a photorealistic "
         "contextual image: an outfit combination for fashion products, "
         "or a room placement shot for furniture. "
         "The image is stored in Supabase Storage and a public URL is returned."
