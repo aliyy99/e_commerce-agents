@@ -8,3 +8,6 @@ node_modules/
 __pycache__/
 .venv/
 dist/
+
+# Compare Agent runtime cache (backend/.cache/compare_analysis.json)
+backend/.cache/

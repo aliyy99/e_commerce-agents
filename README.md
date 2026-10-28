@@ -60,7 +60,7 @@ e_commerce-agents/
 │   ├── requirements.txt
 │   ├── supabase_migration.sql    # Tables, storage bucket and RLS policies
 │   ├── .env                      # Your secrets (git-ignored, create it yourself)
-│   ├── .cache/                   # Compare Agent analysis cache (compare_analysis.json)
+│   ├── .cache/                   # Compare Agent analysis cache (git-ignored, created at runtime)
 │   ├── agents/                   # vision, compare, analyst, detective, visualizer, orchestrator
 │   ├── routes/                   # One router per endpoint group (see API Reference)
 │   ├── services/
@@ -85,7 +85,7 @@ e_commerce-agents/
 ├── vite.config.js                # Dev server; proxies /api → http://127.0.0.1:8000
 ├── tailwind.config.js, postcss.config.js
 ├── package.json
-└── dist/                         # Production build output (npm run build)
+└── dist/                         # Production build output (npm run build, git-ignored)
 ```
 
 ---
